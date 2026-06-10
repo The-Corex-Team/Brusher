@@ -23,12 +23,32 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Qt
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install Qt (Ubuntu)
+        if: runner.os == 'Linux'
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
           cache: true
           modules: 'qtbase qttools qtsvg qtwayland'
+
+      - name: Install Qt (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          cache: true
+
+      - name: Install Qt (macOS)
+        if: runner.os == 'macOS'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          cache: true
 
       - name: Clean CMake Cache (Unix)
         if: runner.os != 'Windows'
