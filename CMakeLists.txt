@@ -42,16 +42,19 @@ add_executable(Brusher
 
 target_link_libraries(Brusher PRIVATE Qt6::Widgets Qt6::OpenGLWidgets Qt6::Svg)
 
+# Install target
 install(TARGETS Brusher
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION .
 )
-# At the end of CMakeLists.txt
+
+# CPack configuration
 set(CPACK_PACKAGE_NAME "brusher")
 set(CPACK_PACKAGE_VERSION "1.0.0")
 set(CPACK_PACKAGE_VENDOR "The Corex Team")
 set(CPACK_PACKAGE_DESCRIPTION "A modern painting application")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "walter.muller.1708@gmail.com")
 set(CPACK_GENERATOR "DEB")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 
 include(CPack)
