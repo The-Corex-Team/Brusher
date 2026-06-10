@@ -48,11 +48,13 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      - name: List Build Artifacts (Debug)
-        if: always()
-        run: |
-          echo "=== Build directory contents ==="
-          ${{ runner.os == 'Windows' && 'dir build /s /b' || 'find build -type f' }}
+      - name: List Build Artifacts (Debug - Windows)
+        if: runner.os == 'Windows'
+        run: Get-ChildItem -Path build -Recurse -File | Select-Object FullName
+
+      - name: List Build Artifacts (Debug - Unix)
+        if: runner.os != 'Windows'
+        run: find build -type f
 
       - name: Package (Ubuntu)
         if: runner.os == 'Linux'
