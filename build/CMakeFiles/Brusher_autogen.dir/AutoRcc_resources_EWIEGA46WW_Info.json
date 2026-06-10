@@ -1,0 +1,31 @@
+{
+	"BUILD_DIR" : "/home/walter/Projects/Brusher/build/Brusher_autogen",
+	"CMAKE_BINARY_DIR" : "/home/walter/Projects/Brusher/build",
+	"CMAKE_CURRENT_BINARY_DIR" : "/home/walter/Projects/Brusher/build",
+	"CMAKE_CURRENT_SOURCE_DIR" : "/home/walter/Projects/Brusher",
+	"CMAKE_SOURCE_DIR" : "/home/walter/Projects/Brusher",
+	"INCLUDE_DIR" : "/home/walter/Projects/Brusher/build/Brusher_autogen/include",
+	"INPUTS" : 
+	[
+		"/home/walter/Projects/Brusher/src/icons/colorpicker.svg",
+		"/home/walter/Projects/Brusher/src/icons/rectselect.svg",
+		"/home/walter/Projects/Brusher/src/icons/pan.svg",
+		"/home/walter/Projects/Brusher/src/icons/brush.svg",
+		"/home/walter/Projects/Brusher/src/icons/move.svg",
+		"/home/walter/Projects/Brusher/src/icons/fill.svg",
+		"/home/walter/Projects/Brusher/src/icons/text.svg",
+		"/home/walter/Projects/Brusher/src/icons/zoom.svg",
+		"/home/walter/Projects/Brusher/src/icons/eraser.svg",
+		"/home/walter/Projects/Brusher/src/icons/pointer.svg"
+	],
+	"LOCK_FILE" : "/home/walter/Projects/Brusher/build/CMakeFiles/Brusher_autogen.dir/AutoRcc_resources_EWIEGA46WW_Lock.lock",
+	"MULTI_CONFIG" : false,
+	"OPTIONS" : [ "-name", "resources" ],
+	"OUTPUT_CHECKSUM" : "EWIEGA46WW",
+	"OUTPUT_NAME" : "qrc_resources.cpp",
+	"RCC_EXECUTABLE" : "/usr/lib/qt6/libexec/rcc",
+	"RCC_LIST_OPTIONS" : [ "--list" ],
+	"SETTINGS_FILE" : "/home/walter/Projects/Brusher/build/CMakeFiles/Brusher_autogen.dir/AutoRcc_resources_EWIEGA46WW_Used.txt",
+	"SOURCE" : "/home/walter/Projects/Brusher/resources.qrc",
+	"VERBOSITY" : 0
+}

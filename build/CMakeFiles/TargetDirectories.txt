@@ -1,0 +1,4 @@
+/home/walter/Projects/Brusher/build/CMakeFiles/Brusher.dir
+/home/walter/Projects/Brusher/build/CMakeFiles/edit_cache.dir
+/home/walter/Projects/Brusher/build/CMakeFiles/rebuild_cache.dir
+/home/walter/Projects/Brusher/build/CMakeFiles/Brusher_autogen.dir
