@@ -58,8 +58,9 @@ jobs:
       - name: Deploy Qt (macOS)
         if: runner.os == 'macOS'
         run: |
-          $qtPath = "${{ env.QT_ROOT_DIR }}"
+          qtPath="${{ env.QT_ROOT_DIR }}"
           macdeployqt "${{ github.workspace }}/build/Brusher.app" -dmg
+          ls -la build/
 
       - name: Package (Ubuntu)
         if: runner.os == 'Linux'
