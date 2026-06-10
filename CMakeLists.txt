@@ -46,11 +46,12 @@ install(TARGETS Brusher
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION .
 )
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_PACKAGE_VENDOR "Corex Team")
-set(CPACK_PACKAGE_CONTACT "walter.muller.1708@gmail.com")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Brusher Digital Painting Software")
-set(CPACK_GENERATOR "DEB")
+# At the end of CMakeLists.txt
 set(CPACK_PACKAGE_NAME "brusher")
-set(CPACK_PACKAGE_VERSION "0.1.0")
+set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_PACKAGE_VENDOR "The Corex Team")
+set(CPACK_PACKAGE_DESCRIPTION "A modern painting application")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "walter.muller.1708@gmail.com")
+set(CPACK_GENERATOR "DEB")
+
 include(CPack)
