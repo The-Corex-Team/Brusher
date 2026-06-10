@@ -83,7 +83,7 @@ Brusher_autogen/EWIEGA46WW/qrc_resources.cpp: ../src/icons/eraser.svg
 Brusher_autogen/EWIEGA46WW/qrc_resources.cpp: ../src/icons/pointer.svg
 Brusher_autogen/EWIEGA46WW/qrc_resources.cpp: /usr/lib/qt6/libexec/rcc
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/home/walter/Projects/Brusher/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Automatic RCC for resources.qrc"
-	/usr/bin/cmake -E cmake_autorcc /home/walter/Projects/Brusher/build/CMakeFiles/Brusher_autogen.dir/AutoRcc_resources_EWIEGA46WW_Info.json 
+	/usr/bin/cmake -E cmake_autorcc /home/walter/Projects/Brusher/build/CMakeFiles/Brusher_autogen.dir/AutoRcc_resources_EWIEGA46WW_Info.json Debug
 
 CMakeFiles/Brusher.dir/Brusher_autogen/mocs_compilation.cpp.o: CMakeFiles/Brusher.dir/flags.make
 CMakeFiles/Brusher.dir/Brusher_autogen/mocs_compilation.cpp.o: Brusher_autogen/mocs_compilation.cpp

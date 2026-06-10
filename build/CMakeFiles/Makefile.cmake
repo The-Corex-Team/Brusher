@@ -136,6 +136,8 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/usr/share/cmake-3.22/Modules/CMakeParseArguments.cmake"
   "/usr/share/cmake-3.22/Modules/CMakeSystemSpecificInformation.cmake"
   "/usr/share/cmake-3.22/Modules/CMakeSystemSpecificInitialize.cmake"
+  "/usr/share/cmake-3.22/Modules/CPack.cmake"
+  "/usr/share/cmake-3.22/Modules/CPackComponent.cmake"
   "/usr/share/cmake-3.22/Modules/CheckCSourceCompiles.cmake"
   "/usr/share/cmake-3.22/Modules/CheckCXXCompilerFlag.cmake"
   "/usr/share/cmake-3.22/Modules/CheckCXXSourceCompiles.cmake"
@@ -160,6 +162,7 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/usr/share/cmake-3.22/Modules/Platform/Linux-GNU.cmake"
   "/usr/share/cmake-3.22/Modules/Platform/Linux.cmake"
   "/usr/share/cmake-3.22/Modules/Platform/UnixPaths.cmake"
+  "/usr/share/cmake-3.22/Templates/CPackConfig.cmake.in"
   )
 
 # The corresponding makefile is:
@@ -170,6 +173,8 @@ set(CMAKE_MAKEFILE_OUTPUTS
 
 # Byproducts of CMake generate step:
 set(CMAKE_MAKEFILE_PRODUCTS
+  "CPackConfig.cmake"
+  "CPackSourceConfig.cmake"
   "CMakeFiles/Brusher_autogen.dir/AutogenInfo.json"
   "CMakeFiles/Brusher_autogen.dir/AutoRcc_resources_EWIEGA46WW_Info.json"
   "CMakeFiles/CMakeDirectoryInformation.cmake"

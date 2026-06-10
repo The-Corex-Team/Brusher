@@ -384,6 +384,10 @@
 		"/usr/lib/x86_64-linux-gnu/cmake/Qt6Svg/Qt6SvgTargets-none.cmake",
 		"/usr/lib/x86_64-linux-gnu/cmake/Qt6Svg/Qt6SvgAdditionalTargetInfo.cmake",
 		"/usr/lib/x86_64-linux-gnu/cmake/Qt6Svg/Qt6SvgVersionlessTargets.cmake",
+		"/usr/share/cmake-3.22/Modules/CPack.cmake",
+		"/usr/share/cmake-3.22/Modules/CPackComponent.cmake",
+		"/usr/share/cmake-3.22/Templates/CPackConfig.cmake.in",
+		"/usr/share/cmake-3.22/Templates/CPackConfig.cmake.in",
 		"/home/walter/Projects/Brusher/resources.qrc"
 	],
 	"CMAKE_SOURCE_DIR" : "/home/walter/Projects/Brusher",
@@ -471,7 +475,6 @@
 	[
 		"QT_CORE_LIB",
 		"QT_GUI_LIB",
-		"QT_NO_DEBUG",
 		"QT_OPENGLWIDGETS_LIB",
 		"QT_OPENGL_LIB",
 		"QT_SVG_LIB",

@@ -68,7 +68,7 @@ include CMakeFiles/Brusher_autogen.dir/progress.make
 
 CMakeFiles/Brusher_autogen:
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/home/walter/Projects/Brusher/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Automatic MOC and UIC for target Brusher"
-	/usr/bin/cmake -E cmake_autogen /home/walter/Projects/Brusher/build/CMakeFiles/Brusher_autogen.dir/AutogenInfo.json ""
+	/usr/bin/cmake -E cmake_autogen /home/walter/Projects/Brusher/build/CMakeFiles/Brusher_autogen.dir/AutogenInfo.json Debug
 
 Brusher_autogen: CMakeFiles/Brusher_autogen
 Brusher_autogen: CMakeFiles/Brusher_autogen.dir/build.make

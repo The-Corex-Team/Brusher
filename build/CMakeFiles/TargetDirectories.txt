@@ -1,4 +1,10 @@
 /home/walter/Projects/Brusher/build/CMakeFiles/Brusher.dir
+/home/walter/Projects/Brusher/build/CMakeFiles/package.dir
+/home/walter/Projects/Brusher/build/CMakeFiles/package_source.dir
 /home/walter/Projects/Brusher/build/CMakeFiles/edit_cache.dir
 /home/walter/Projects/Brusher/build/CMakeFiles/rebuild_cache.dir
+/home/walter/Projects/Brusher/build/CMakeFiles/list_install_components.dir
+/home/walter/Projects/Brusher/build/CMakeFiles/install.dir
+/home/walter/Projects/Brusher/build/CMakeFiles/install/local.dir
+/home/walter/Projects/Brusher/build/CMakeFiles/install/strip.dir
 /home/walter/Projects/Brusher/build/CMakeFiles/Brusher_autogen.dir
