@@ -27,7 +27,9 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          
+
+      - name: Clean CMake Cache
+        run: rm -rf build/
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
