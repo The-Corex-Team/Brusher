@@ -48,13 +48,18 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      - name: List Build Artifacts (Debug - Windows)
+      - name: Deploy Qt (Windows)
         if: runner.os == 'Windows'
-        run: Get-ChildItem -Path build -Recurse -File | Select-Object FullName
+        run: |
+          $qtPath = "${{ env.QT_ROOT_DIR }}"
+          $windeployqt = "$qtPath\bin\windeployqt.exe"
+          & $windeployqt "${{ github.workspace }}\build\Release\Brusher.exe" --dir "${{ github.workspace }}\build\Release"
 
-      - name: List Build Artifacts (Debug - Unix)
-        if: runner.os != 'Windows'
-        run: find build -type f
+      - name: Deploy Qt (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          $qtPath = "${{ env.QT_ROOT_DIR }}"
+          macdeployqt "${{ github.workspace }}/build/Brusher.app" -dmg
 
       - name: Package (Ubuntu)
         if: runner.os == 'Linux'
@@ -66,14 +71,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Brusher-${{ matrix.os }}
-          path: build/Release/Brusher.exe
+          path: build/Release/
 
       - name: Upload Artifacts (macOS)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: Brusher-${{ matrix.os }}
-          path: build/Brusher
+          path: build/*.dmg
 
       - name: Upload Artifacts (Ubuntu)
         if: runner.os == 'Linux'
