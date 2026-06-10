@@ -1,0 +1,15 @@
+build/
+cmake-build-*/
+.vscode/
+
+*.user
+*.autosave
+*.o
+*.obj
+*.dll
+*.exe
+*.app
+*.dSYM
+*.a
+*.so
+*.dylib

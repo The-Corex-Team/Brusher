@@ -41,3 +41,16 @@ add_executable(Brusher
 )
 
 target_link_libraries(Brusher PRIVATE Qt6::Widgets Qt6::OpenGLWidgets Qt6::Svg)
+
+install(TARGETS Brusher
+    RUNTIME DESTINATION bin
+    BUNDLE DESTINATION .
+)
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_PACKAGE_VENDOR "Corex Team")
+set(CPACK_PACKAGE_CONTACT "walter.muller.1708@gmail.com")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Brusher Digital Painting Software")
+set(CPACK_GENERATOR "DEB")
+set(CPACK_PACKAGE_NAME "brusher")
+set(CPACK_PACKAGE_VERSION "0.1.0")
+include(CPack)
