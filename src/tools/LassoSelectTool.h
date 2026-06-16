@@ -1,15 +1,17 @@
 #pragma once
 
 #include "Tool.h"
-#include <QColor>
+#include <QPoint>
+#include <QVector>
 
-class FillTool : public Tool {
+class LassoSelectTool : public Tool {
 public:
     void mousePressEvent(QMouseEvent *event, CanvasWidget *canvas, QImage *image) override;
     void mouseMoveEvent(QMouseEvent *event, CanvasWidget *canvas, QImage *image) override;
     void mouseReleaseEvent(QMouseEvent *event, CanvasWidget *canvas, QImage *image) override;
+    void drawPreview(QPainter *painter, CanvasWidget *canvas) override;
 
 private:
-    void floodFill(QImage *image, const QPoint &startPoint, const QColor &fillColor, int tolerance);
-    bool colorMatch(QRgb c1, QRgb c2, int tolerance);
+    QVector<QPoint> m_points;
+    bool m_selecting = false;
 };

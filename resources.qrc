@@ -9,7 +9,17 @@
         <file>src/icons/pan.svg</file>
         <file>src/icons/pointer.svg</file>
         <file>src/icons/rectselect.svg</file>
+        <file>src/icons/ellipseselect.svg</file>
+        <file>src/icons/lassoselect.svg</file>
         <file>src/icons/text.svg</file>
         <file>src/icons/zoom.svg</file>
+        <file>src/icons/layer_visible.svg</file>
+        <file>src/icons/layer_new.svg</file>
+        <file>src/icons/layer_delete.svg</file>
+        <file>src/icons/layer_duplicate.svg</file>
+        <file>src/icons/swap.svg</file>
+        <file>src/icons/line.svg</file>
+        <file>src/icons/Brusher_Splashscreen.svg</file>
+        <file>src/styles/brusher_dark.qss</file>
     </qresource>
 </RCC>

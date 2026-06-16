@@ -26,7 +26,9 @@ void PenTool::mouseReleaseEvent(QMouseEvent *event, CanvasWidget *canvas, QImage
 void PenTool::drawLineTo(const QPoint &endPoint, CanvasWidget *canvas, QImage *image)
 {
     QPainter painter(image);
-    painter.setPen(QPen(canvas->brushColor(), canvas->brushSize(), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    QColor color = canvas->brushColor();
+    color.setAlpha(canvas->brushOpacity());
+    painter.setPen(QPen(color, canvas->brushSize(), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     painter.drawLine(m_lastPoint, endPoint);
     
     int rad = (canvas->brushSize() / 2) + 2;

@@ -26,7 +26,9 @@ void LineTool::mouseReleaseEvent(QMouseEvent *event, CanvasWidget *canvas, QImag
         m_drawing = false;
         
         QPainter painter(image);
-        painter.setPen(QPen(canvas->brushColor(), canvas->brushSize(), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        QColor color = canvas->brushColor();
+        color.setAlpha(canvas->brushOpacity());
+        painter.setPen(QPen(color, canvas->brushSize(), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         painter.drawLine(m_startPoint, event->position().toPoint());
         
         canvas->update();
@@ -36,7 +38,9 @@ void LineTool::mouseReleaseEvent(QMouseEvent *event, CanvasWidget *canvas, QImag
 void LineTool::drawPreview(QPainter *painter, CanvasWidget *canvas)
 {
     if (m_drawing) {
-        painter->setPen(QPen(canvas->brushColor(), canvas->brushSize(), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        QColor color = canvas->brushColor();
+        color.setAlpha(canvas->brushOpacity());
+        painter->setPen(QPen(color, canvas->brushSize(), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         painter->drawLine(m_startPoint, m_currentPoint);
     }
 }

@@ -4,6 +4,10 @@
 
 class QListWidget;
 class QPushButton;
+class QToolButton;
+class QSlider;
+class QComboBox;
+class QSpinBox;
 class CanvasWidget;
 
 class LayerPanel : public QDockWidget {
@@ -14,14 +18,26 @@ public:
 private slots:
     void onAddLayerClicked();
     void onRemoveLayerClicked();
+    void onDuplicateLayerClicked();
     void onListSelectionChanged();
+    void onOpacityChanged(int value);
+    void onBlendModeChanged(int index);
+    void onVisibilityToggled(int row);
     void syncLayersFromCanvas();
 
 private:
+    void setupLayerItem(int row, const QString &name, bool visible);
+
     CanvasWidget *m_canvas;
     QListWidget *m_layerList;
-    QPushButton *m_addBtn;
-    QPushButton *m_removeBtn;
+    
+    QComboBox *m_blendModeCombo;
+    QSlider *m_opacitySlider;
+    QSpinBox *m_opacitySpinBox;
+    
+    QToolButton *m_addBtn;
+    QToolButton *m_removeBtn;
+    QToolButton *m_duplicateBtn;
     
     bool m_isSyncing;
 };

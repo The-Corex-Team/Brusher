@@ -1,15 +1,20 @@
 #pragma once
 
 #include "Tool.h"
-#include <QColor>
+#include <QPoint>
+#include <QImage>
 
-class FillTool : public Tool {
+class MoveTool : public Tool {
 public:
     void mousePressEvent(QMouseEvent *event, CanvasWidget *canvas, QImage *image) override;
     void mouseMoveEvent(QMouseEvent *event, CanvasWidget *canvas, QImage *image) override;
     void mouseReleaseEvent(QMouseEvent *event, CanvasWidget *canvas, QImage *image) override;
+    void drawPreview(QPainter *painter, CanvasWidget *canvas) override;
 
 private:
-    void floodFill(QImage *image, const QPoint &startPoint, const QColor &fillColor, int tolerance);
-    bool colorMatch(QRgb c1, QRgb c2, int tolerance);
+    QPoint m_startPoint;
+    QPoint m_lastPoint;
+    bool m_moving = false;
+    QImage m_floatingPixels;
+    QImage m_backupLayer;
 };

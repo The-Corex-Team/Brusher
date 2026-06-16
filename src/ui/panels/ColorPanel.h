@@ -3,8 +3,9 @@
 #include <QDockWidget>
 #include <QColor>
 
-class QPushButton;
 class QSlider;
+class QSpinBox;
+class QLineEdit;
 class QLabel;
 
 class ColorPanel : public QDockWidget {
@@ -17,17 +18,27 @@ public slots:
 
 signals:
     void colorChanged(const QColor &color);
-    void brushSizeChanged(int size);
 
 private slots:
-    void chooseColor();
-    void onSizeChanged(int size);
+    void onSliderChanged();
+    void onHexChanged();
 
 private:
-    void updateColorButtonBackground();
-
-    QPushButton *m_colorBtn;
-    QSlider *m_sizeSlider;
-    QLabel *m_sizeLabel;
+    void updateUIFromColor();
+    
     QColor m_currentColor;
+    bool m_isUpdatingUI;
+
+    QLabel *m_colorPreview;
+    
+    QSlider *m_rSlider;
+    QSpinBox *m_rSpinBox;
+    
+    QSlider *m_gSlider;
+    QSpinBox *m_gSpinBox;
+    
+    QSlider *m_bSlider;
+    QSpinBox *m_bSpinBox;
+    
+    QLineEdit *m_hexInput;
 };
