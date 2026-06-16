@@ -20,6 +20,7 @@
         <file>src/icons/swap.svg</file>
         <file>src/icons/line.svg</file>
         <file>src/icons/Brusher_Splashscreen.svg</file>
+        <file>src/icons/Brusher_Splashscreen.png</file>
         <file>src/styles/brusher_dark.qss</file>
     </qresource>
 </RCC>
