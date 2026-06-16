@@ -22,6 +22,24 @@
 #include <QFileInfo>
 #include <QtMath>
 
+namespace {
+
+QPainter::CompositionMode compositionModeForBlendMode(BlendMode blendMode)
+{
+    switch (blendMode) {
+        case BlendMode::Multiply: return QPainter::CompositionMode_Multiply;
+        case BlendMode::Screen: return QPainter::CompositionMode_Screen;
+        case BlendMode::Overlay: return QPainter::CompositionMode_Overlay;
+        case BlendMode::Darken: return QPainter::CompositionMode_Darken;
+        case BlendMode::Lighten: return QPainter::CompositionMode_Lighten;
+        case BlendMode::Normal: return QPainter::CompositionMode_SourceOver;
+    }
+
+    return QPainter::CompositionMode_SourceOver;
+}
+
+} // namespace
+
 CanvasWidget::CanvasWidget(QWidget *parent)
     : QOpenGLWidget(parent)
     , m_activeLayerIndex(0)
@@ -469,18 +487,7 @@ QImage CanvasWidget::blendLayers() const
     for (const auto &layer : m_layers) {
         if (layer.visible) {
             painter.setOpacity(layer.opacity);
-
-            QPainter::CompositionMode compMode = QPainter::CompositionMode_SourceOver;
-            switch (layer.blendMode) {
-                case BlendMode::Multiply: compMode = QPainter::CompositionMode_Multiply; break;
-                case BlendMode::Screen: compMode = QPainter::CompositionMode_Screen; break;
-                case BlendMode::Overlay: compMode = QPainter::CompositionMode_Overlay; break;
-                case BlendMode::Darken: compMode = QPainter::CompositionMode_Darken; break;
-                case BlendMode::Lighten: compMode = QPainter::CompositionMode_Lighten; break;
-                default: break;
-            }
-
-            painter.setCompositionMode(compMode);
+            painter.setCompositionMode(compositionModeForBlendMode(layer.blendMode));
             painter.drawImage(0, 0, layer.image);
         }
     }
@@ -490,6 +497,20 @@ QImage CanvasWidget::blendLayers() const
 QImage CanvasWidget::getFlattenedImage() const
 {
     return blendLayers();
+}
+
+void CanvasWidget::updateCanvasRect(const QRect &canvasRect)
+{
+    if (canvasRect.isEmpty()) {
+        return;
+    }
+
+    QTransform transform;
+    transform.translate(width() / 2.0 + m_panOffset.x(), height() / 2.0 + m_panOffset.y());
+    transform.scale(m_zoomLevel, m_zoomLevel);
+    transform.translate(-m_canvasSize.width() / 2.0, -m_canvasSize.height() / 2.0);
+
+    update(transform.mapRect(QRectF(canvasRect)).toAlignedRect().adjusted(-2, -2, 2, 2));
 }
 
 bool CanvasWidget::saveImage(const QString &fileName)
@@ -675,7 +696,18 @@ void CanvasWidget::paintEvent(QPaintEvent *event)
     painter.drawRect(canvasRect);
     painter.restore();
 
-    painter.drawImage(0, 0, blendLayers());
+    for (const auto &layer : m_layers) {
+        if (!layer.visible) {
+            continue;
+        }
+
+        painter.setOpacity(layer.opacity);
+        painter.setCompositionMode(compositionModeForBlendMode(layer.blendMode));
+        painter.drawImage(0, 0, layer.image);
+    }
+
+    painter.setOpacity(1.0);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     drawSelectionOverlay(painter);
 
     if (m_activeTool) {

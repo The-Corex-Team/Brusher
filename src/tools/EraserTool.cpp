@@ -35,6 +35,6 @@ void EraserTool::drawLineTo(const QPoint &endPoint, CanvasWidget *canvas, QImage
     painter.drawLine(m_lastPoint, endPoint);
     
     int rad = (canvas->brushSize() / 2) + 2;
-    canvas->update(QRect(m_lastPoint, endPoint).normalized().adjusted(-rad, -rad, +rad, +rad));
+    canvas->updateCanvasRect(QRect(m_lastPoint, endPoint).normalized().adjusted(-rad, -rad, +rad, +rad));
     m_lastPoint = endPoint;
 }

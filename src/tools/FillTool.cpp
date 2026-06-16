@@ -1,15 +1,18 @@
 #include "FillTool.h"
 #include "../canvas/CanvasWidget.h"
-#include <queue>
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 void FillTool::mousePressEvent(QMouseEvent *event, CanvasWidget *canvas, QImage *image)
 {
     if (event->button() == Qt::LeftButton) {
         QPoint pos = event->position().toPoint();
         if (pos.x() >= 0 && pos.x() < image->width() && pos.y() >= 0 && pos.y() < image->height()) {
-            floodFill(image, pos, canvas->brushColor(), canvas->fillTolerance());
-            canvas->update();
+            const QRect changed = floodFill(image, pos, canvas->brushColor(), canvas->fillTolerance());
+            if (!changed.isEmpty()) {
+                canvas->updateCanvasRect(changed);
+            }
         }
     }
 }
@@ -40,54 +43,74 @@ bool FillTool::colorMatch(QRgb c1, QRgb c2, int tolerance)
         && std::abs(qAlpha(c1) - qAlpha(c2)) <= tolerance;
 }
 
-void FillTool::floodFill(QImage *image, const QPoint &startPoint, const QColor &fillColor, int tolerance)
+QRect FillTool::floodFill(QImage *image, const QPoint &startPoint, const QColor &fillColor, int tolerance)
 {
-    QRgb targetColor = image->pixel(startPoint);
-    QRgb replacementColor = fillColor.rgba();
+    if (image->format() != QImage::Format_ARGB32) {
+        *image = image->convertToFormat(QImage::Format_ARGB32);
+    }
+
+    const QRgb targetColor = image->pixel(startPoint);
+    const QRgb replacementColor = fillColor.rgba();
 
     if (targetColor == replacementColor) {
-        return;
+        return QRect();
     }
 
     const int w = image->width();
     const int h = image->height();
+    int minX = startPoint.x();
+    int maxX = startPoint.x();
+    int minY = startPoint.y();
+    int maxY = startPoint.y();
 
-    std::queue<QPoint> q;
-    q.push(startPoint);
+    std::vector<QPoint> stack;
+    stack.reserve(std::min(static_cast<size_t>(w) * static_cast<size_t>(h), static_cast<size_t>(65536)));
+    stack.push_back(startPoint);
 
-    while (!q.empty()) {
-        QPoint p = q.front();
-        q.pop();
+    while (!stack.empty()) {
+        const QPoint p = stack.back();
+        stack.pop_back();
 
-        int x = p.x();
-        int y = p.y();
+        const int x = p.x();
+        const int y = p.y();
+        QRgb *row = reinterpret_cast<QRgb *>(image->scanLine(y));
 
-        if (!colorMatch(image->pixel(x, y), targetColor, tolerance)) {
+        if (!colorMatch(row[x], targetColor, tolerance)) {
             continue;
         }
 
         int x1 = x;
-        while (x1 >= 0 && colorMatch(image->pixel(x1, y), targetColor, tolerance)) {
-            image->setPixel(x1, y, replacementColor);
+        while (x1 >= 0 && colorMatch(row[x1], targetColor, tolerance)) {
+            row[x1] = replacementColor;
+            minX = std::min(minX, x1);
+            maxX = std::max(maxX, x1);
+            minY = std::min(minY, y);
+            maxY = std::max(maxY, y);
             if (y > 0 && colorMatch(image->pixel(x1, y - 1), targetColor, tolerance)) {
-                q.push(QPoint(x1, y - 1));
+                stack.emplace_back(x1, y - 1);
             }
             if (y < h - 1 && colorMatch(image->pixel(x1, y + 1), targetColor, tolerance)) {
-                q.push(QPoint(x1, y + 1));
+                stack.emplace_back(x1, y + 1);
             }
             x1--;
         }
 
         x1 = x + 1;
-        while (x1 < w && colorMatch(image->pixel(x1, y), targetColor, tolerance)) {
-            image->setPixel(x1, y, replacementColor);
+        while (x1 < w && colorMatch(row[x1], targetColor, tolerance)) {
+            row[x1] = replacementColor;
+            minX = std::min(minX, x1);
+            maxX = std::max(maxX, x1);
+            minY = std::min(minY, y);
+            maxY = std::max(maxY, y);
             if (y > 0 && colorMatch(image->pixel(x1, y - 1), targetColor, tolerance)) {
-                q.push(QPoint(x1, y - 1));
+                stack.emplace_back(x1, y - 1);
             }
             if (y < h - 1 && colorMatch(image->pixel(x1, y + 1), targetColor, tolerance)) {
-                q.push(QPoint(x1, y + 1));
+                stack.emplace_back(x1, y + 1);
             }
             x1++;
         }
     }
+
+    return QRect(QPoint(minX, minY), QPoint(maxX, maxY)).adjusted(-1, -1, 1, 1);
 }

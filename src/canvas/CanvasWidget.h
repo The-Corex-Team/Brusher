@@ -85,6 +85,7 @@ public:
 
     QImage getFlattenedImage() const;
     QSize canvasSize() const { return m_canvasSize; }
+    void updateCanvasRect(const QRect &canvasRect);
 
     // Selection
     void setSelectionMask(const QImage &mask, const QRect &bounds);

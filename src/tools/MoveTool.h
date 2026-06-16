@@ -16,5 +16,4 @@ private:
     QPoint m_lastPoint;
     bool m_moving = false;
     QImage m_floatingPixels;
-    QImage m_backupLayer;
 };

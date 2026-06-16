@@ -19,7 +19,6 @@ void MoveTool::mousePressEvent(QMouseEvent *event, CanvasWidget *canvas, QImage 
 
     m_floatingPixels = QImage(bounds.size(), QImage::Format_ARGB32);
     m_floatingPixels.fill(Qt::transparent);
-    m_backupLayer = image->copy();
 
     for (int y = 0; y < bounds.height(); ++y) {
         for (int x = 0; x < bounds.width(); ++x) {
@@ -71,7 +70,6 @@ void MoveTool::mouseReleaseEvent(QMouseEvent *event, CanvasWidget *canvas, QImag
 
     canvas->setSelectionMask(mask, bounds.translated(delta));
     m_floatingPixels = QImage();
-    m_backupLayer = QImage();
     canvas->update();
 }
 

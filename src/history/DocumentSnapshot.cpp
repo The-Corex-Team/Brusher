@@ -12,14 +12,12 @@ DocumentSnapshot DocumentSnapshot::capture(
     snapshot.canvasSize = canvasSize;
     snapshot.activeLayerIndex = activeLayerIndex;
     snapshot.description = description;
-    snapshot.selectionMask = selectionMask.isNull() ? QImage() : selectionMask.copy();
+    snapshot.selectionMask = selectionMask;
     snapshot.selectionBounds = selectionBounds;
 
     snapshot.layers.reserve(layers.size());
     for (const auto &layer : layers) {
-        Layer copy = layer;
-        copy.image = layer.image.copy();
-        snapshot.layers.push_back(copy);
+        snapshot.layers.push_back(layer);
     }
 
     return snapshot;
@@ -34,14 +32,8 @@ void DocumentSnapshot::applyTo(
 {
     canvasSize = this->canvasSize;
     activeLayerIndex = this->activeLayerIndex;
-    selectionMask = this->selectionMask.isNull() ? QImage() : this->selectionMask.copy();
+    selectionMask = this->selectionMask;
     selectionBounds = this->selectionBounds;
 
-    layers.clear();
-    layers.reserve(this->layers.size());
-    for (const auto &layer : this->layers) {
-        Layer copy = layer;
-        copy.image = layer.image.copy();
-        layers.push_back(copy);
-    }
+    layers = this->layers;
 }

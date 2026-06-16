@@ -5,7 +5,7 @@
 
 class HistoryManager {
 public:
-    static constexpr int MaxHistory = 50;
+    static constexpr int MaxHistory = 20;
 
     void clear();
     void pushState(const DocumentSnapshot &state);
