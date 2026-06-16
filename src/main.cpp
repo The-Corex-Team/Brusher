@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "DEBUG: App created\n");
 
     // Create and show splash window BEFORE initializing the main app theme.
-    SplashWindow splash(QStringLiteral(":/src/icons/Brusher_Splashscreen.svg"), SPLASH_WIDTH, SPLASH_HEIGHT);
+    SplashWindow splash(QStringLiteral(":/src/icons/Brusher_Splashscreen.png"), SPLASH_WIDTH, SPLASH_HEIGHT);
     fprintf(stderr, "DEBUG: SplashWindow created with size %dx%d\n", SPLASH_WIDTH, SPLASH_HEIGHT);
 
     // Center on the primary screen.
