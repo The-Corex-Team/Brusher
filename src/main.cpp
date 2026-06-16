@@ -11,8 +11,8 @@
 #include <cstdio>
 
 // Splash window configuration
-const int SPLASH_WIDTH = 600;
-const int SPLASH_HEIGHT = 400;
+const int SPLASH_WIDTH = 1080;
+const int SPLASH_HEIGHT = 720;
 const int SPLASH_DURATION_MS = 10000; // 10 seconds
 
 // Frameless splash window that renders an SVG from resources.
