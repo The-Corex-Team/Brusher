@@ -10,6 +10,7 @@
 #include <QScreen>
 #include <QGuiApplication>
 #include <cstdio>
+#include <QIcon>
 
 // Splash configuration
 const double SPLASH_SCALE = 0.50;      // 50% size
@@ -67,7 +68,7 @@ private:
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-
+    a.setWindowIcon(QIcon(QStringLiteral(":/src/icons/Brusher.svg")));
     fprintf(stderr, "DEBUG: App created\n");
 
     SplashWindow splash(

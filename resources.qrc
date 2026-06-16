@@ -22,5 +22,6 @@
         <file>src/icons/Brusher_Splashscreen.svg</file>
         <file>src/icons/Brusher_Splashscreen.png</file>
         <file>src/styles/brusher_dark.qss</file>
+        <file>src/icons/Brusher.svg</file>
     </qresource>
 </RCC>

@@ -11,7 +11,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Svg)
 
 include_directories(src)
 
-add_executable(Brusher
+add_executable(Brusher WIN32
     src/main.cpp
     src/ui/MainWindow.cpp
     src/ui/MainWindow.h
