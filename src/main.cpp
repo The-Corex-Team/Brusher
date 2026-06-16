@@ -11,49 +11,57 @@
 #include <QGuiApplication>
 #include <cstdio>
 
-// Splash window configuration
-const int SPLASH_WIDTH = 1080;
-const int SPLASH_HEIGHT = 720;
-const int SPLASH_DURATION_MS = 10000; // 10 seconds
+// Splash configuration
+const double SPLASH_SCALE = 0.50;      // 50% size
+const int SPLASH_DURATION_MS = 10000;  // 10 seconds
 
 class SplashWindow : public QWidget {
 public:
-    SplashWindow(const QString &imagePath,
-                 int width,
-                 int height,
-                 QWidget *parent = nullptr)
+    SplashWindow(const QString& imagePath,
+                 double scale,
+                 QWidget* parent = nullptr)
         : QWidget(parent),
-          m_pixmap(imagePath),
-          m_width(width),
-          m_height(height)
+          m_pixmap(imagePath)
     {
-        setFixedSize(m_width, m_height);
+        if (m_pixmap.isNull()) {
+            fprintf(stderr,
+                    "ERROR: Failed to load splash image: %s\n",
+                    imagePath.toUtf8().constData());
+            return;
+        }
+
+        QSize scaledSize(
+            static_cast<int>(m_pixmap.width() * scale),
+            static_cast<int>(m_pixmap.height() * scale)
+        );
+
+        setFixedSize(scaledSize);
 
         setWindowFlags(
             Qt::FramelessWindowHint |
             Qt::WindowStaysOnTopHint |
             Qt::Dialog
         );
-
-        if (m_pixmap.isNull()) {
-            fprintf(stderr, "ERROR: Failed to load splash image: %s\n",
-                    imagePath.toUtf8().constData());
-        }
     }
 
 protected:
-    void paintEvent(QPaintEvent *) override
+    void paintEvent(QPaintEvent*) override
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
 
-        painter.drawPixmap(rect(), m_pixmap);
+        painter.drawPixmap(
+            rect(),
+            m_pixmap.scaled(
+                size(),
+                Qt::KeepAspectRatio,
+                Qt::SmoothTransformation
+            )
+        );
     }
 
 private:
     QPixmap m_pixmap;
-    int m_width;
-    int m_height;
 };
 
 int main(int argc, char *argv[])
@@ -64,18 +72,20 @@ int main(int argc, char *argv[])
 
     SplashWindow splash(
         QStringLiteral(":/src/icons/Brusher_Splashscreen.png"),
-        SPLASH_WIDTH,
-        SPLASH_HEIGHT
+        SPLASH_SCALE
     );
 
     fprintf(stderr, "DEBUG: SplashWindow created\n");
 
-    // Center on screen
-    QScreen *screen = QGuiApplication::primaryScreen();
-
-    if (screen) {
+    // Center splash
+    if (QScreen* screen = QGuiApplication::primaryScreen()) {
         QRect g = screen->availableGeometry();
-        QPoint center = g.center() - splash.rect().center();
+
+        QPoint center(
+            g.center().x() - splash.width() / 2,
+            g.center().y() - splash.height() / 2
+        );
+
         splash.move(center);
     }
 
@@ -87,7 +97,7 @@ int main(int argc, char *argv[])
 
     fprintf(stderr, "DEBUG: Splash shown\n");
 
-    // Keep splash visible
+    // Wait
     QEventLoop loop;
     QTimer::singleShot(
         SPLASH_DURATION_MS,
@@ -101,7 +111,7 @@ int main(int argc, char *argv[])
 
     fprintf(stderr, "DEBUG: Splash closed\n");
 
-    // Apply Brusher theme
+    // Apply theme
     BrusherTheme::apply(a);
 
     MainWindow w;
