@@ -11,10 +11,12 @@
 #include <QGuiApplication>
 #include <cstdio>
 #include <QIcon>
+#include <QPixmapCache>
+#include <QSurfaceFormat>
 
 // Splash configuration
 const double SPLASH_SCALE = 0.50;      // 50% size
-const int SPLASH_DURATION_MS = 10000;  // 10 seconds
+const int SPLASH_DURATION_MS = 5000;  // 5 seconds
 
 class SplashWindow : public QWidget {
 public:
@@ -36,6 +38,12 @@ public:
             static_cast<int>(m_pixmap.height() * scale)
         );
 
+        m_pixmap = m_pixmap.scaled(
+            scaledSize,
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation
+        );
+
         setFixedSize(scaledSize);
 
         setWindowFlags(
@@ -49,16 +57,7 @@ protected:
     void paintEvent(QPaintEvent*) override
     {
         QPainter painter(this);
-        painter.setRenderHint(QPainter::SmoothPixmapTransform);
-
-        painter.drawPixmap(
-            rect(),
-            m_pixmap.scaled(
-                size(),
-                Qt::KeepAspectRatio,
-                Qt::SmoothTransformation
-            )
-        );
+        painter.drawPixmap(rect(), m_pixmap);
     }
 
 private:
@@ -67,48 +66,58 @@ private:
 
 int main(int argc, char *argv[])
 {
+    QSurfaceFormat surfaceFormat;
+    surfaceFormat.setDepthBufferSize(0);
+    surfaceFormat.setStencilBufferSize(0);
+    surfaceFormat.setSamples(0);
+    surfaceFormat.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+    QSurfaceFormat::setDefaultFormat(surfaceFormat);
+
     QApplication a(argc, argv);
     a.setWindowIcon(QIcon(QStringLiteral(":/src/icons/Brusher.svg")));
+    QPixmapCache::setCacheLimit(1024);
     fprintf(stderr, "DEBUG: App created\n");
 
-    SplashWindow splash(
-        QStringLiteral(":/src/icons/Brusher_Splashscreen.png"),
-        SPLASH_SCALE
-    );
-
-    fprintf(stderr, "DEBUG: SplashWindow created\n");
-
-    // Center splash
-    if (QScreen* screen = QGuiApplication::primaryScreen()) {
-        QRect g = screen->availableGeometry();
-
-        QPoint center(
-            g.center().x() - splash.width() / 2,
-            g.center().y() - splash.height() / 2
+    {
+        SplashWindow splash(
+            QStringLiteral(":/src/icons/Brusher_Splashscreen.png"),
+            SPLASH_SCALE
         );
 
-        splash.move(center);
+        fprintf(stderr, "DEBUG: SplashWindow created\n");
+
+        // Center splash
+        if (QScreen* screen = QGuiApplication::primaryScreen()) {
+            QRect g = screen->availableGeometry();
+
+            QPoint center(
+                g.center().x() - splash.width() / 2,
+                g.center().y() - splash.height() / 2
+            );
+
+            splash.move(center);
+        }
+
+        splash.show();
+        splash.raise();
+        splash.activateWindow();
+
+        a.processEvents();
+
+        fprintf(stderr, "DEBUG: Splash shown\n");
+
+        // Wait
+        QEventLoop loop;
+        QTimer::singleShot(
+            SPLASH_DURATION_MS,
+            &loop,
+            &QEventLoop::quit
+        );
+
+        loop.exec();
+
+        splash.close();
     }
-
-    splash.show();
-    splash.raise();
-    splash.activateWindow();
-
-    a.processEvents();
-
-    fprintf(stderr, "DEBUG: Splash shown\n");
-
-    // Wait
-    QEventLoop loop;
-    QTimer::singleShot(
-        SPLASH_DURATION_MS,
-        &loop,
-        &QEventLoop::quit
-    );
-
-    loop.exec();
-
-    splash.close();
 
     fprintf(stderr, "DEBUG: Splash closed\n");
 

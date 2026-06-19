@@ -21,6 +21,7 @@
 #include <QTransform>
 #include <QFileInfo>
 #include <QtMath>
+#include <algorithm>
 
 namespace {
 
@@ -55,8 +56,14 @@ CanvasWidget::CanvasWidget(QWidget *parent)
     , m_panning(false)
     , m_spacePanning(false)
     , m_strokeInProgress(false)
+    , m_recordingPatchHistory(false)
     , m_currentToolType(Pen)
 {
+    setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
+    setAttribute(Qt::WA_NoSystemBackground, true);
+    setAutoFillBackground(false);
+
     Layer bgLayer;
     bgLayer.name = "Background";
     bgLayer.image = QImage(m_canvasSize, QImage::Format_ARGB32);
@@ -87,21 +94,85 @@ void CanvasWidget::restoreFromSnapshot(const DocumentSnapshot &snapshot)
 void CanvasWidget::initHistory(const QString &description)
 {
     m_history.clear();
+    clearPatchHistory();
     m_history.pushState(captureSnapshot(description));
     emit historyChanged();
 }
 
 void CanvasWidget::pushHistoryState(const QString &description)
 {
+    clearPatchHistory();
     m_history.pushState(captureSnapshot(description));
     emit historyChanged();
 }
 
-void CanvasWidget::undo()
+void CanvasWidget::beginPatchHistory(const QString &description)
 {
-    if (!canUndo()) {
+    m_pendingPatchHistory = PatchHistoryEntry();
+    m_pendingPatchHistory.description = description;
+    m_recordingPatchHistory = true;
+}
+
+void CanvasWidget::commitPatchHistory()
+{
+    if (!m_recordingPatchHistory) {
         return;
     }
+
+    m_recordingPatchHistory = false;
+
+    if (m_pendingPatchHistory.patches.empty()) {
+        m_pendingPatchHistory = PatchHistoryEntry();
+        return;
+    }
+
+    for (auto &patch : m_pendingPatchHistory.patches) {
+        if (patch.layerIndex >= 0 && patch.layerIndex < static_cast<int>(m_layers.size())) {
+            patch.after = m_layers[patch.layerIndex].image.copy(patch.rect);
+        }
+    }
+
+    m_patchUndoStack.push_back(std::move(m_pendingPatchHistory));
+    while (static_cast<int>(m_patchUndoStack.size()) > HistoryManager::MaxHistory) {
+        m_patchUndoStack.erase(m_patchUndoStack.begin());
+    }
+    m_patchRedoStack.clear();
+    m_pendingPatchHistory = PatchHistoryEntry();
+    emit historyChanged();
+}
+
+void CanvasWidget::clearPatchHistory()
+{
+    m_patchUndoStack.clear();
+    m_patchRedoStack.clear();
+    m_pendingPatchHistory = PatchHistoryEntry();
+    m_recordingPatchHistory = false;
+}
+
+void CanvasWidget::undo()
+{
+    if (!m_patchUndoStack.empty()) {
+        PatchHistoryEntry entry = std::move(m_patchUndoStack.back());
+        m_patchUndoStack.pop_back();
+
+        for (auto it = entry.patches.rbegin(); it != entry.patches.rend(); ++it) {
+            if (it->layerIndex >= 0 && it->layerIndex < static_cast<int>(m_layers.size())) {
+                QPainter painter(&m_layers[it->layerIndex].image);
+                painter.setCompositionMode(QPainter::CompositionMode_Source);
+                painter.drawImage(it->rect.topLeft(), it->before);
+                updateCanvasRect(it->rect);
+            }
+        }
+
+        m_patchRedoStack.push_back(std::move(entry));
+        emit historyChanged();
+        return;
+    }
+
+    if (!m_history.canUndo()) {
+        return;
+    }
+    m_patchRedoStack.clear();
     m_history.undo();
     restoreFromSnapshot(m_history.currentState());
     emit historyChanged();
@@ -109,16 +180,35 @@ void CanvasWidget::undo()
 
 void CanvasWidget::redo()
 {
-    if (!canRedo()) {
+    if (!m_patchRedoStack.empty()) {
+        PatchHistoryEntry entry = std::move(m_patchRedoStack.back());
+        m_patchRedoStack.pop_back();
+
+        for (const auto &patch : entry.patches) {
+            if (patch.layerIndex >= 0 && patch.layerIndex < static_cast<int>(m_layers.size())) {
+                QPainter painter(&m_layers[patch.layerIndex].image);
+                painter.setCompositionMode(QPainter::CompositionMode_Source);
+                painter.drawImage(patch.rect.topLeft(), patch.after);
+                updateCanvasRect(patch.rect);
+            }
+        }
+
+        m_patchUndoStack.push_back(std::move(entry));
+        emit historyChanged();
         return;
     }
+
+    if (!m_history.canRedo()) {
+        return;
+    }
+    clearPatchHistory();
     m_history.redo();
     restoreFromSnapshot(m_history.currentState());
     emit historyChanged();
 }
 
-bool CanvasWidget::canUndo() const { return m_history.canUndo(); }
-bool CanvasWidget::canRedo() const { return m_history.canRedo(); }
+bool CanvasWidget::canUndo() const { return !m_patchUndoStack.empty() || m_history.canUndo(); }
+bool CanvasWidget::canRedo() const { return !m_patchRedoStack.empty() || m_history.canRedo(); }
 
 void CanvasWidget::newCanvas(int width, int height)
 {
@@ -277,6 +367,44 @@ void CanvasWidget::duplicateLayer(int index)
         emit layersChanged();
         update();
     }
+}
+
+void CanvasWidget::moveLayer(int fromIndex, int toIndex)
+{
+    const int layerCount = static_cast<int>(m_layers.size());
+    if (fromIndex < 0 || fromIndex >= layerCount || toIndex < 0 || toIndex >= layerCount || fromIndex == toIndex) {
+        return;
+    }
+
+    pushHistoryState("Reorder Layers");
+
+    Layer movedLayer = std::move(m_layers[fromIndex]);
+    m_layers.erase(m_layers.begin() + fromIndex);
+    m_layers.insert(m_layers.begin() + toIndex, std::move(movedLayer));
+
+    if (m_activeLayerIndex == fromIndex) {
+        m_activeLayerIndex = toIndex;
+    } else if (fromIndex < m_activeLayerIndex && toIndex >= m_activeLayerIndex) {
+        --m_activeLayerIndex;
+    } else if (fromIndex > m_activeLayerIndex && toIndex <= m_activeLayerIndex) {
+        ++m_activeLayerIndex;
+    }
+
+    emit layersChanged();
+    update();
+}
+
+void CanvasWidget::renameLayer(int index, const QString &name)
+{
+    const QString trimmedName = name.trimmed();
+    if (index < 0 || index >= static_cast<int>(m_layers.size()) || trimmedName.isEmpty()
+        || m_layers[index].name == trimmedName) {
+        return;
+    }
+
+    pushHistoryState("Rename Layer");
+    m_layers[index].name = trimmedName;
+    emit layersChanged();
 }
 
 void CanvasWidget::setActiveLayer(int index)
@@ -480,6 +608,19 @@ void CanvasWidget::clearCanvas()
 
 QImage CanvasWidget::blendLayers() const
 {
+    const auto visibleLayer = std::find_if(m_layers.begin(), m_layers.end(), [](const Layer &layer) {
+        return layer.visible && layer.opacity > 0.0f;
+    });
+
+    if (visibleLayer != m_layers.end()
+        && std::find_if(std::next(visibleLayer), m_layers.end(), [](const Layer &layer) {
+               return layer.visible && layer.opacity > 0.0f;
+           }) == m_layers.end()
+        && visibleLayer->opacity >= 1.0f
+        && visibleLayer->blendMode == BlendMode::Normal) {
+        return visibleLayer->image;
+    }
+
     QImage flat(m_canvasSize, QImage::Format_ARGB32);
     flat.fill(Qt::transparent);
 
@@ -511,6 +652,48 @@ void CanvasWidget::updateCanvasRect(const QRect &canvasRect)
     transform.translate(-m_canvasSize.width() / 2.0, -m_canvasSize.height() / 2.0);
 
     update(transform.mapRect(QRectF(canvasRect)).toAlignedRect().adjusted(-2, -2, 2, 2));
+}
+
+void CanvasWidget::recordActiveLayerHistoryRegion(const QRect &canvasRect)
+{
+    if (!m_recordingPatchHistory || m_layers.empty()) {
+        return;
+    }
+
+    const QRect imageBounds(QPoint(0, 0), m_canvasSize);
+    const QRect clipped = canvasRect.intersected(imageBounds);
+    if (clipped.isEmpty()) {
+        return;
+    }
+
+    constexpr int TileSize = 128;
+    const int startTileX = clipped.left() / TileSize;
+    const int endTileX = clipped.right() / TileSize;
+    const int startTileY = clipped.top() / TileSize;
+    const int endTileY = clipped.bottom() / TileSize;
+
+    for (int tileY = startTileY; tileY <= endTileY; ++tileY) {
+        for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
+            const QRect tileRect(tileX * TileSize, tileY * TileSize, TileSize, TileSize);
+            const QRect patchRect = tileRect.intersected(imageBounds);
+            const auto alreadyCaptured = std::find_if(
+                m_pendingPatchHistory.patches.begin(),
+                m_pendingPatchHistory.patches.end(),
+                [this, &patchRect](const LayerPatch &patch) {
+                    return patch.layerIndex == m_activeLayerIndex && patch.rect == patchRect;
+                });
+
+            if (alreadyCaptured != m_pendingPatchHistory.patches.end()) {
+                continue;
+            }
+
+            LayerPatch patch;
+            patch.layerIndex = m_activeLayerIndex;
+            patch.rect = patchRect;
+            patch.before = m_layers[m_activeLayerIndex].image.copy(patchRect);
+            m_pendingPatchHistory.patches.push_back(std::move(patch));
+        }
+    }
 }
 
 bool CanvasWidget::saveImage(const QString &fileName)
@@ -686,9 +869,10 @@ void CanvasWidget::paintEvent(QPaintEvent *event)
     transform.translate(cx + m_panOffset.x(), cy + m_panOffset.y());
     transform.scale(m_zoomLevel, m_zoomLevel);
     transform.translate(-m_canvasSize.width() / 2.0, -m_canvasSize.height() / 2.0);
-    painter.setTransform(transform);
 
     const QRect canvasRect(0, 0, m_canvasSize.width(), m_canvasSize.height());
+    painter.setTransform(transform);
+
     drawCheckerboard(painter, canvasRect);
 
     painter.save();
@@ -738,7 +922,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent *event)
             || m_currentToolType == Line;
 
         if (isDrawingTool && event->button() == Qt::LeftButton && !m_strokeInProgress) {
-            pushHistoryState("Draw");
+            beginPatchHistory("Draw");
             m_strokeInProgress = true;
         } else if (m_currentToolType == Fill && event->button() == Qt::LeftButton) {
             pushHistoryState("Fill");
@@ -789,10 +973,6 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent *event)
         return;
     }
 
-    if (m_strokeInProgress && event->button() == Qt::LeftButton) {
-        m_strokeInProgress = false;
-    }
-
     if (m_activeTool && !m_layers.empty() && m_layers[m_activeLayerIndex].visible) {
         QMouseEvent mappedEvent(
             event->type(),
@@ -802,6 +982,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent *event)
             event->buttons(),
             event->modifiers());
         m_activeTool->mouseReleaseEvent(&mappedEvent, this, &m_layers[m_activeLayerIndex].image);
+    }
+
+    if (m_strokeInProgress && event->button() == Qt::LeftButton) {
+        m_strokeInProgress = false;
+        commitPatchHistory();
     }
 }
 

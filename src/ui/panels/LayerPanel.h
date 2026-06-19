@@ -23,6 +23,7 @@ private slots:
     void onOpacityChanged(int value);
     void onBlendModeChanged(int index);
     void onVisibilityToggled(int row);
+    void onRowsMoved(const QModelIndex &parent, int start, int end, const QModelIndex &destination, int row);
     void syncLayersFromCanvas();
 
 private:

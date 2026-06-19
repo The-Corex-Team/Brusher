@@ -24,14 +24,18 @@ void LineTool::mouseReleaseEvent(QMouseEvent *event, CanvasWidget *canvas, QImag
 {
     if (event->button() == Qt::LeftButton && m_drawing) {
         m_drawing = false;
-        
+        const QPoint endPoint = event->position().toPoint();
+        const int rad = (canvas->brushSize() / 2) + 2;
+        const QRect dirtyRect = QRect(m_startPoint, endPoint).normalized().adjusted(-rad, -rad, +rad, +rad);
+        canvas->recordActiveLayerHistoryRegion(dirtyRect);
+
         QPainter painter(image);
         QColor color = canvas->brushColor();
         color.setAlpha(canvas->brushOpacity());
         painter.setPen(QPen(color, canvas->brushSize(), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(m_startPoint, event->position().toPoint());
-        
-        canvas->update();
+        painter.drawLine(m_startPoint, endPoint);
+
+        canvas->updateCanvasRect(dirtyRect);
     }
 }
 

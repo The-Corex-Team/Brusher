@@ -25,6 +25,10 @@ void EraserTool::mouseReleaseEvent(QMouseEvent *event, CanvasWidget *canvas, QIm
 
 void EraserTool::drawLineTo(const QPoint &endPoint, CanvasWidget *canvas, QImage *image)
 {
+    int rad = (canvas->brushSize() / 2) + 2;
+    const QRect dirtyRect = QRect(m_lastPoint, endPoint).normalized().adjusted(-rad, -rad, +rad, +rad);
+    canvas->recordActiveLayerHistoryRegion(dirtyRect);
+
     QPainter painter(image);
     // Use CompositionMode_Clear to "erase" pixels by making them transparent.
     // If the image doesn't have an alpha channel, it paints with the background color (usually white or black).
@@ -33,8 +37,7 @@ void EraserTool::drawLineTo(const QPoint &endPoint, CanvasWidget *canvas, QImage
     painter.setCompositionMode(QPainter::CompositionMode_Clear);
     painter.setPen(QPen(Qt::transparent, canvas->brushSize(), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     painter.drawLine(m_lastPoint, endPoint);
-    
-    int rad = (canvas->brushSize() / 2) + 2;
-    canvas->updateCanvasRect(QRect(m_lastPoint, endPoint).normalized().adjusted(-rad, -rad, +rad, +rad));
+
+    canvas->updateCanvasRect(dirtyRect);
     m_lastPoint = endPoint;
 }

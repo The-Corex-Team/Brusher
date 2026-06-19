@@ -11,6 +11,8 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QIcon>
+#include <QAbstractItemModel>
+#include <QAbstractItemView>
 
 LayerPanel::LayerPanel(CanvasWidget *canvas, QWidget *parent)
     : QDockWidget(tr("Layers"), parent)
@@ -55,6 +57,12 @@ LayerPanel::LayerPanel(CanvasWidget *canvas, QWidget *parent)
     // Layer List
     m_layerList = new QListWidget(content);
     m_layerList->setIconSize(QSize(20, 20));
+    m_layerList->setDragDropMode(QAbstractItemView::InternalMove);
+    m_layerList->setDefaultDropAction(Qt::MoveAction);
+    m_layerList->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_layerList->setDragEnabled(true);
+    m_layerList->setAcceptDrops(true);
+    m_layerList->setDropIndicatorShown(true);
     layout->addWidget(m_layerList);
 
     // Bottom Action Buttons
@@ -90,6 +98,7 @@ LayerPanel::LayerPanel(CanvasWidget *canvas, QWidget *parent)
     connect(m_removeBtn, &QToolButton::clicked, this, &LayerPanel::onRemoveLayerClicked);
     connect(m_duplicateBtn, &QToolButton::clicked, this, &LayerPanel::onDuplicateLayerClicked);
     connect(m_layerList, &QListWidget::currentRowChanged, this, &LayerPanel::onListSelectionChanged);
+    connect(m_layerList->model(), &QAbstractItemModel::rowsMoved, this, &LayerPanel::onRowsMoved);
     
     connect(m_opacitySlider, &QSlider::valueChanged, m_opacitySpinBox, &QSpinBox::setValue);
     connect(m_opacitySpinBox, qOverload<int>(&QSpinBox::valueChanged), m_opacitySlider, &QSlider::setValue);
@@ -182,12 +191,42 @@ void LayerPanel::onVisibilityToggled(int row)
     m_canvas->setLayerVisible(m_layerList->count() - 1 - row, isVisible);
 }
 
+void LayerPanel::onRowsMoved(
+    const QModelIndex &parent,
+    int start,
+    int end,
+    const QModelIndex &destination,
+    int row)
+{
+    Q_UNUSED(parent);
+    Q_UNUSED(destination);
+
+    if (m_isSyncing || start != end) {
+        return;
+    }
+
+    const int count = m_layerList->count();
+    const int finalRow = row > start ? row - 1 : row;
+    if (finalRow < 0 || finalRow >= count || finalRow == start) {
+        return;
+    }
+
+    const int fromCanvasIndex = count - 1 - start;
+    const int toCanvasIndex = count - 1 - finalRow;
+    m_canvas->moveLayer(fromCanvasIndex, toCanvasIndex);
+}
+
 void LayerPanel::setupLayerItem(int row, const QString &name, bool visible)
 {
     QListWidgetItem *item = new QListWidgetItem(name);
     
     // Use checkstate for visibility
-    item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+    item->setFlags(
+        item->flags()
+        | Qt::ItemIsUserCheckable
+        | Qt::ItemIsEditable
+        | Qt::ItemIsDragEnabled
+        | Qt::ItemIsDropEnabled);
     item->setCheckState(visible ? Qt::Checked : Qt::Unchecked);
     
     if (visible) {
@@ -230,7 +269,9 @@ void LayerPanel::syncLayersFromCanvas()
             item->setIcon(QIcon());
         }
         
-        m_canvas->setLayerVisible(m_layerList->count() - 1 - row, isVisible);
+        const int canvasIndex = m_layerList->count() - 1 - row;
+        m_canvas->setLayerVisible(canvasIndex, isVisible);
+        m_canvas->renameLayer(canvasIndex, item->text());
     });
     
     m_isSyncing = false;

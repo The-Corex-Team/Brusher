@@ -62,6 +62,8 @@ public:
     void addLayer(const QString &name);
     void removeLayer(int index);
     void duplicateLayer(int index);
+    void moveLayer(int fromIndex, int toIndex);
+    void renameLayer(int index, const QString &name);
     void setActiveLayer(int index);
     void setLayerVisible(int index, bool visible);
     void setLayerOpacity(int index, float opacity);
@@ -86,6 +88,7 @@ public:
     QImage getFlattenedImage() const;
     QSize canvasSize() const { return m_canvasSize; }
     void updateCanvasRect(const QRect &canvasRect);
+    void recordActiveLayerHistoryRegion(const QRect &canvasRect);
 
     // Selection
     void setSelectionMask(const QImage &mask, const QRect &bounds);
@@ -139,6 +142,9 @@ private:
     void restoreFromSnapshot(const DocumentSnapshot &snapshot);
     DocumentSnapshot captureSnapshot(const QString &description) const;
     void initHistory(const QString &description);
+    void beginPatchHistory(const QString &description);
+    void commitPatchHistory();
+    void clearPatchHistory();
     QRect effectiveFilterRegion() const;
     void applyFilterToActiveLayer(const QImage &filtered, const QRect &region);
     bool isPanActive(QMouseEvent *event) const;
@@ -158,6 +164,23 @@ private:
     QRect m_selectionBounds;
 
     HistoryManager m_history;
+
+    struct LayerPatch {
+        int layerIndex = -1;
+        QRect rect;
+        QImage before;
+        QImage after;
+    };
+
+    struct PatchHistoryEntry {
+        QString description;
+        std::vector<LayerPatch> patches;
+    };
+
+    std::vector<PatchHistoryEntry> m_patchUndoStack;
+    std::vector<PatchHistoryEntry> m_patchRedoStack;
+    PatchHistoryEntry m_pendingPatchHistory;
+    bool m_recordingPatchHistory;
 
     double m_zoomLevel;
     QPointF m_panOffset;
