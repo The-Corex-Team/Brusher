@@ -1,32 +1,39 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(Brusher)
+project(Brusher VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
+# Qt
 find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Svg)
 
-include_directories(src)
-
-add_executable(Brusher WIN32
+# Sources
+set(SOURCES
     src/main.cpp
+
     src/ui/MainWindow.cpp
     src/ui/MainWindow.h
     src/ui/MainWindow.ui
+
     src/canvas/CanvasWidget.cpp
     src/canvas/CanvasWidget.h
+
     src/history/DocumentSnapshot.cpp
     src/history/DocumentSnapshot.h
     src/history/HistoryManager.cpp
     src/history/HistoryManager.h
+
     src/filters/ImageFilters.cpp
     src/filters/ImageFilters.h
+
     src/io/ProjectSerializer.cpp
     src/io/ProjectSerializer.h
-    src/tools/Tool.h
+
     src/tools/PenTool.cpp
     src/tools/PenTool.h
     src/tools/EraserTool.cpp
@@ -51,6 +58,7 @@ add_executable(Brusher WIN32
     src/tools/MoveTool.h
     src/tools/ZoomTool.cpp
     src/tools/ZoomTool.h
+
     src/ui/panels/ToolPanel.cpp
     src/ui/panels/ToolPanel.h
     src/ui/panels/ToolOptionsBar.cpp
@@ -59,28 +67,64 @@ add_executable(Brusher WIN32
     src/ui/panels/ColorPanel.h
     src/ui/panels/LayerPanel.cpp
     src/ui/panels/LayerPanel.h
+
     src/ui/dialogs/NewProjectDialog.cpp
     src/ui/dialogs/NewProjectDialog.h
     src/ui/dialogs/CanvasSizeDialog.cpp
     src/ui/dialogs/CanvasSizeDialog.h
+
     src/ui/BrusherTheme.cpp
     src/ui/BrusherTheme.h
+
     resources.qrc
 )
 
-target_link_libraries(Brusher PRIVATE Qt6::Widgets Qt6::OpenGLWidgets Qt6::Svg)
+add_executable(Brusher WIN32 ${SOURCES})
 
-install(TARGETS Brusher
-    RUNTIME DESTINATION bin
-    BUNDLE DESTINATION .
+target_include_directories(Brusher PRIVATE src)
+
+target_link_libraries(Brusher PRIVATE
+    Qt6::Widgets
+    Qt6::OpenGLWidgets
+    Qt6::Svg
 )
 
+# -------------------------
+# INSTALL RULES (IMPORTANT)
+# -------------------------
+
+# Binary
+install(TARGETS Brusher
+    RUNTIME DESTINATION bin
+)
+
+# Desktop entry (App Menu)
+install(FILES packaging/brusher.desktop
+    DESTINATION share/applications
+)
+
+# SVG icon (scalable system icon)
+install(FILES packaging/icons/Brusher.svg
+    DESTINATION share/icons/hicolor/scalable/apps
+)
+
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+    "${CMAKE_SOURCE_DIR}/packaging/postinst"
+)
+# -------------------------
+# CPack (DEB PACKAGE)
+# -------------------------
+
 set(CPACK_PACKAGE_NAME "brusher")
-set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_VENDOR "The Corex Team")
-set(CPACK_PACKAGE_DESCRIPTION "A modern painting application")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A modern painting application")
+
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "walter.muller.1708@gmail.com")
-set(CPACK_GENERATOR "DEB")
+set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
+set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_GENERATOR "DEB")
 
 include(CPack)
