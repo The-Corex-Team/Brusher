@@ -13,6 +13,7 @@
 #include "../history/DocumentSnapshot.h"
 #include "../filters/ImageFilters.h"
 #include "../io/ProjectSerializer.h"
+#include "../ui/BrushSettingsPopup.h"
 #include <QPainter>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -20,8 +21,13 @@
 #include <QPaintEvent>
 #include <QTransform>
 #include <QFileInfo>
+#include <QTemporaryFile>
+#include <QStandardPaths>
+#include <QDir>
 #include <QtMath>
 #include <algorithm>
+#include <cstdio>
+#include <utility>
 
 namespace {
 
@@ -74,6 +80,11 @@ CanvasWidget::CanvasWidget(QWidget *parent)
     setTool(Pen);
     setMinimumSize(m_canvasSize);
     setFocusPolicy(Qt::StrongFocus);
+    setMouseTracking(true);
+
+    // Right-click brush settings popup. Constructed once, owned for the
+    // canvas's lifetime; shown via showAt() in mousePressEvent.
+    m_brushSettingsPopup = new BrushSettingsPopup(this);
 }
 
 CanvasWidget::~CanvasWidget() = default;
@@ -104,6 +115,7 @@ void CanvasWidget::pushHistoryState(const QString &description)
     clearPatchHistory();
     m_history.pushState(captureSnapshot(description));
     emit historyChanged();
+    emit documentEdited();
 }
 
 void CanvasWidget::beginPatchHistory(const QString &description)
@@ -139,6 +151,7 @@ void CanvasWidget::commitPatchHistory()
     m_patchRedoStack.clear();
     m_pendingPatchHistory = PatchHistoryEntry();
     emit historyChanged();
+    emit documentEdited();
 }
 
 void CanvasWidget::clearPatchHistory()
@@ -166,6 +179,7 @@ void CanvasWidget::undo()
 
         m_patchRedoStack.push_back(std::move(entry));
         emit historyChanged();
+        emit documentEdited();
         return;
     }
 
@@ -176,6 +190,7 @@ void CanvasWidget::undo()
     m_history.undo();
     restoreFromSnapshot(m_history.currentState());
     emit historyChanged();
+    emit documentEdited();
 }
 
 void CanvasWidget::redo()
@@ -195,6 +210,7 @@ void CanvasWidget::redo()
 
         m_patchUndoStack.push_back(std::move(entry));
         emit historyChanged();
+        emit documentEdited();
         return;
     }
 
@@ -205,6 +221,7 @@ void CanvasWidget::redo()
     m_history.redo();
     restoreFromSnapshot(m_history.currentState());
     emit historyChanged();
+    emit documentEdited();
 }
 
 bool CanvasWidget::canUndo() const { return !m_patchUndoStack.empty() || m_history.canUndo(); }
@@ -376,6 +393,8 @@ void CanvasWidget::moveLayer(int fromIndex, int toIndex)
         return;
     }
 
+    // Only push history once we know the move is real. A no-op or
+    // out-of-range reorder would otherwise pollute the undo stack.
     pushHistoryState("Reorder Layers");
 
     Layer movedLayer = std::move(m_layers[fromIndex]);
@@ -511,8 +530,23 @@ void CanvasWidget::setBrushColor(const QColor &color)
     }
 }
 
-void CanvasWidget::setBrushSize(int size) { m_brushSize = size; }
-void CanvasWidget::setBrushOpacity(int opacity) { m_brushOpacity = std::clamp(opacity, 0, 255); }
+void CanvasWidget::setBrushSize(int size)
+{
+    const int clamped = std::clamp(size, 1, 200);
+    if (m_brushSize != clamped) {
+        m_brushSize = clamped;
+        emit brushSizeChanged(m_brushSize);
+    }
+}
+
+void CanvasWidget::setBrushOpacity(int opacity)
+{
+    const int clamped = std::clamp(opacity, 0, 255);
+    if (m_brushOpacity != clamped) {
+        m_brushOpacity = clamped;
+        emit brushOpacityChanged(m_brushOpacity);
+    }
+}
 void CanvasWidget::setFillTolerance(int tolerance) { m_fillTolerance = std::clamp(tolerance, 0, 255); }
 void CanvasWidget::setTextFontFamily(const QString &family) { m_textFontFamily = family; }
 void CanvasWidget::setTextFontSize(int size) { m_textFontSize = std::clamp(size, 6, 200); }
@@ -738,6 +772,7 @@ bool CanvasWidget::openProject(const QString &fileName)
     emit layersChanged();
     emit zoomChanged(m_zoomLevel);
     emit historyChanged();
+    emit documentEdited();
     update();
     return true;
 }
@@ -897,6 +932,10 @@ void CanvasWidget::paintEvent(QPaintEvent *event)
     if (m_activeTool) {
         m_activeTool->drawPreview(&painter, this);
     }
+
+    // Brush-size cursor indicator goes on top of everything so it always
+    // stays visible, even over a tool's in-progress preview stroke.
+    drawBrushSizeIndicator(&painter);
 }
 
 bool CanvasWidget::isPanActive(QMouseEvent *event) const
@@ -913,6 +952,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent *event)
         m_panStartPos = event->position();
         m_panStartOffset = m_panOffset;
         setCursor(Qt::ClosedHandCursor);
+        return;
+    }
+
+    // Right-click over the canvas, while a brush-using tool is active,
+    // pops up the Brush Settings menu at the cursor. Anything else
+    // (selection tools, fill, eyedropper, etc.) ignores right-click.
+    if (event->button() == Qt::RightButton && isDrawingTool() && m_brushSettingsPopup) {
+        m_brushSettingsPopup->showAt(event->globalPosition().toPoint());
+        event->accept();
         return;
     }
 
@@ -941,6 +989,16 @@ void CanvasWidget::mousePressEvent(QMouseEvent *event)
 
 void CanvasWidget::mouseMoveEvent(QMouseEvent *event)
 {
+    // Cache the hover position unconditionally so the brush-size indicator
+    // can paint with the freshest cursor location on the next frame, then
+    // throttle repaints to the cases that actually move the indicator.
+    if (m_lastMousePos != event->position()) {
+        m_lastMousePos = event->position();
+        if (m_mouseInside && !m_panning && !m_strokeInProgress && isDrawingTool()) {
+            update();
+        }
+    }
+
     if (m_panning || (event->buttons() & Qt::MiddleButton)) {
         if (!m_panning) {
             m_panning = true;
@@ -992,6 +1050,24 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent *event)
 
 void CanvasWidget::wheelEvent(QWheelEvent *event)
 {
+    // Ctrl+Alt+wheel adjusts brush size by ±10% per notch (GIMP-style).
+    // Without modifiers, the wheel zooms the canvas as before.
+    const bool sizeShortcut =
+        (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier))
+            == (Qt::ControlModifier | Qt::AltModifier);
+
+    if (sizeShortcut) {
+        const int step = std::max(1, static_cast<int>(qRound(m_brushSize * 0.10)));
+        // Use the dominant axis (|y| vs |x|): many Linux/X11 mice report
+        // vertical wheel motion on the x channel instead of y.
+        const int dy = event->angleDelta().y();
+        const int dx = event->angleDelta().x();
+        const int delta = (dy != 0 ? dy : dx) > 0 ? step : -step;
+        setBrushSize(m_brushSize + delta);
+        event->accept();
+        return;
+    }
+
     const double factor = event->angleDelta().y() > 0 ? 1.1 : 1.0 / 1.1;
     applyZoomAt(event->position(), factor);
     event->accept();
@@ -1015,4 +1091,352 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent *event)
         }
     }
     QOpenGLWidget::keyReleaseEvent(event);
+}
+
+// ---------------------------------------------------------------------------
+// Low Memory Mode — idle-resource release/restore.
+//
+// When the user enables Low Memory Mode and the main window is deactivated or
+// minimized, we write hidden layer images and full history snapshots out to
+// QTemporaryFile objects in the system temp dir, then drop the in-process
+// QImage buffers. The selection mask and the patch undo/redo stacks are
+// discarded (cheap to rebuild — the user can re-select or just keeps editing
+// with the patched history truncated). The active, visible layer is never
+// released: the user is editing it.
+//
+// On window reactivation we read the temp files back into fresh QImages,
+// restore the selection/patch state, and request a repaint. The OS handles
+// deleting the temp files when the QFile objects are destroyed.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Create a brand-new QTemporaryFile for a layer/snapshot image. Ownership of
+// the returned pointer transfers to the caller; the file stays open (and
+// pinned on disk) for the duration of the release window.
+QTemporaryFile *createBrusherTempFile()
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QTemporaryFile *file = new QTemporaryFile(
+        QDir(dir).filePath(QStringLiteral("brusher-XXXXXX.png")));
+    file->setAutoRemove(true);
+    if (!file->open()) {
+        delete file;
+        return nullptr;
+    }
+    return file;
+}
+
+} // namespace
+
+
+QImage CanvasWidget::readImageFromMappedFile(const MappedImage &mapped)
+{
+    if (mapped.path.isEmpty()) {
+        return QImage();
+    }
+
+    QFile in(mapped.path);
+    if (!in.open(QIODevice::ReadOnly)) {
+        return QImage();
+    }
+    const QByteArray bytes = in.readAll();
+    in.close();
+
+    QImage image;
+    image.loadFromData(bytes, "PNG");
+
+    // Defensive: ensure the format we rehydrate to matches what we saved, so
+    // downstream blend math doesn't see a surprise Format_Invalid.
+    if (!image.isNull() && image.format() != mapped.format) {
+        image = image.convertToFormat(mapped.format);
+    }
+    return image;
+}
+
+bool CanvasWidget::isBusy() const
+{
+    if (m_strokeInProgress) {
+        return true;
+    }
+    if (m_activeTool && m_activeTool->isBusy()) {
+        return true;
+    }
+    return false;
+}
+
+void CanvasWidget::setLowMemoryMode(bool enabled)
+{
+    if (m_lowMemoryMode == enabled) {
+        return;
+    }
+    m_lowMemoryMode = enabled;
+    emit lowMemoryModeChanged(m_lowMemoryMode);
+
+    // Turning the mode off while released restores immediately so the user
+    // can interact normally without waiting for a focus event.
+    if (!enabled && m_resourcesReleased) {
+        restoreIdleResources();
+    }
+}
+
+void CanvasWidget::mapLayerOut(int layerIndex)
+{
+    if (layerIndex < 0 || layerIndex >= static_cast<int>(m_layers.size())) {
+        return;
+    }
+    QImage &image = m_layers[layerIndex].image;
+    if (image.isNull()) {
+        return;
+    }
+
+    QTemporaryFile *file = createBrusherTempFile();
+    if (!file) {
+        return;
+    }
+    if (!image.save(file, "PNG")) {
+        delete file;
+        return;
+    }
+    file->close();
+
+    MappedImage mapped;
+    mapped.size = image.size();
+    mapped.format = image.format();
+    mapped.path = file->fileName();
+    mapped.bytesPerLine = static_cast<int>(image.bytesPerLine());
+    mapped.layerIndex = layerIndex;
+
+    m_idleTempFiles.push_back(file);
+
+    // Drop the in-RAM pixels.
+    image = QImage();
+}
+
+void CanvasWidget::mapSnapshotOut(int historyIndex)
+{
+    std::vector<DocumentSnapshot> &states = m_history.mutableStates();
+    if (historyIndex < 0 || historyIndex >= static_cast<int>(states.size())) {
+        return;
+    }
+    DocumentSnapshot &snap = states[historyIndex];
+    std::vector<MappedImage> layerMaps;
+    layerMaps.reserve(snap.layers.size());
+
+    for (auto &layer : snap.layers) {
+        if (layer.image.isNull()) {
+            layerMaps.push_back(MappedImage{});
+            continue;
+        }
+
+        QTemporaryFile *file = createBrusherTempFile();
+        if (!file) {
+            // Roll back: rehydrate everything we've already swapped so the
+            // snapshot remains consistent.
+            for (size_t i = 0; i < layerMaps.size() && i < snap.layers.size(); ++i) {
+                snap.layers[i].image = readImageFromMappedFile(layerMaps[i]);
+            }
+            return;
+        }
+        if (!layer.image.save(file, "PNG")) {
+            delete file;
+            for (size_t i = 0; i < layerMaps.size() && i < snap.layers.size(); ++i) {
+                snap.layers[i].image = readImageFromMappedFile(layerMaps[i]);
+            }
+            return;
+        }
+        file->close();
+
+        MappedImage m;
+        m.size = layer.image.size();
+        m.format = layer.image.format();
+        m.path = file->fileName();
+        m.bytesPerLine = static_cast<int>(layer.image.bytesPerLine());
+        layerMaps.push_back(m);
+
+        m_idleTempFiles.push_back(file);
+        layer.image = QImage();
+    }
+
+    m_mappedSnapshots.push_back({historyIndex, std::move(layerMaps)});
+}
+
+void CanvasWidget::releaseSelectionAndPatches()
+{
+    m_savedSelectionMask = m_selectionMask;
+    m_savedSelectionBounds = m_selectionBounds;
+    m_savedPatchUndoStack = m_patchUndoStack;
+    m_savedPatchRedoStack = m_patchRedoStack;
+    m_selectionMask = QImage();
+    m_selectionBounds = QRect();
+    m_patchUndoStack.clear();
+    m_patchRedoStack.clear();
+}
+
+void CanvasWidget::restoreSelectionAndPatches()
+{
+    m_selectionMask = m_savedSelectionMask;
+    m_selectionBounds = m_savedSelectionBounds;
+    m_patchUndoStack = std::move(m_savedPatchUndoStack);
+    m_patchRedoStack = std::move(m_savedPatchRedoStack);
+    m_savedSelectionMask = QImage();
+    m_savedSelectionBounds = QRect();
+    m_savedPatchUndoStack.clear();
+    m_savedPatchRedoStack.clear();
+}
+
+void CanvasWidget::releaseIdleResources()
+{
+    if (!m_lowMemoryMode || m_resourcesReleased) {
+        return;
+    }
+    if (isBusy()) {
+        return;
+    }
+
+    // 1. Hidden layers (anything not currently the active layer).
+    const int layerCount = static_cast<int>(m_layers.size());
+    for (int i = 0; i < layerCount; ++i) {
+        if (i == m_activeLayerIndex) {
+            continue;
+        }
+        mapLayerOut(i);
+    }
+
+    // 2. History snapshots. We map every snapshot's layer images out; the
+    //    snapshot metadata (description, indices, selection) stays in RAM.
+    const int snapCount = static_cast<int>(m_history.mutableStates().size());
+    for (int i = 0; i < snapCount; ++i) {
+        mapSnapshotOut(i);
+    }
+
+    // 3. Selection and patch stacks (lossy — documented).
+    releaseSelectionAndPatches();
+
+    m_resourcesReleased = true;
+    setUpdatesEnabled(false);
+    emit historyChanged();
+}
+
+void CanvasWidget::restoreIdleResources()
+{
+    if (!m_resourcesReleased) {
+        return;
+    }
+
+    // Hidden layers.
+    for (const MappedImage &mapped : m_mappedHiddenLayers) {
+        // The layerIndex was tacked on by mapLayerOut via a parallel field;
+        // see MappedImage extension below.
+        if (mapped.layerIndex >= 0 && mapped.layerIndex < static_cast<int>(m_layers.size())) {
+            m_layers[mapped.layerIndex].image = readImageFromMappedFile(mapped);
+        }
+    }
+    m_mappedHiddenLayers.clear();
+
+    // History snapshots — rehydrate layer images back into each snapshot.
+    std::vector<DocumentSnapshot> &states = m_history.mutableStates();
+    for (const auto &entry : m_mappedSnapshots) {
+        const int historyIndex = entry.first;
+        if (historyIndex < 0 || historyIndex >= static_cast<int>(states.size())) {
+            continue;
+        }
+        DocumentSnapshot &snap = states[historyIndex];
+        const int layerCount = std::min(static_cast<int>(snap.layers.size()),
+                                        static_cast<int>(entry.second.size()));
+        for (int j = 0; j < layerCount; ++j) {
+            snap.layers[j].image = readImageFromMappedFile(entry.second[j]);
+        }
+    }
+    m_mappedSnapshots.clear();
+
+    // Selection and patch stacks.
+    restoreSelectionAndPatches();
+
+    // Close and delete temp files. Setting AutoRemove before destruction is
+    // belt-and-suspenders; the destructor also cleans up.
+    for (QFile *file : m_idleTempFiles) {
+        delete file;
+    }
+    m_idleTempFiles.clear();
+
+    m_resourcesReleased = false;
+    setUpdatesEnabled(true);
+    update();
+    emit historyChanged();
+    emit layersChanged();
+}
+
+bool CanvasWidget::isDrawingTool() const
+{
+    // Matches the predicate in mousePressEvent that gates patch-history
+    // recording. Keep these two in sync if you add a new drawing tool.
+    return m_currentToolType == Pen
+        || m_currentToolType == Eraser
+        || m_currentToolType == Line;
+}
+
+void CanvasWidget::enterEvent(QEnterEvent *event)
+{
+    QOpenGLWidget::enterEvent(event);
+    m_mouseInside = true;
+    m_lastMousePos = event->position();
+    if (isDrawingTool() && !m_panning && !m_strokeInProgress) {
+        update();
+    }
+}
+
+void CanvasWidget::leaveEvent(QEvent *event)
+{
+    QOpenGLWidget::leaveEvent(event);
+    if (!m_mouseInside) {
+        return;
+    }
+    m_mouseInside = false;
+    // Always repaint on leave so the indicator clears, even if a tool
+    // switch had already hidden it via isDrawingTool() == false.
+    update();
+}
+
+void CanvasWidget::drawBrushSizeIndicator(QPainter *painter) const
+{
+    if (!m_mouseInside || m_panning || m_strokeInProgress
+        || !isDrawingTool() || m_layers.empty()) {
+        return;
+    }
+
+    // Switch to widget coordinates so the outline stays 1 px wide at every
+    // zoom level and the on-screen diameter matches brushSize * zoomLevel.
+    painter->save();
+    painter->setTransform(QTransform());
+
+    const double radius = (m_brushSize / 2.0) * m_zoomLevel;
+    const QPointF c = m_lastMousePos;
+    const QRectF ring(c.x() - radius, c.y() - radius, radius * 2, radius * 2);
+
+    // Adaptive contrast: a dark stroke and a 1-px-outset light halo, so the
+    // ring stays readable over both light and dark canvas content.
+    QPen darkPen(QColor(0, 0, 0, 220));
+    darkPen.setWidthF(1.0);
+    QPen lightPen(QColor(255, 255, 255, 220));
+    lightPen.setWidthF(1.0);
+
+    painter->setPen(darkPen);
+    painter->setBrush(Qt::NoBrush);
+    painter->drawEllipse(ring);
+
+    painter->setPen(lightPen);
+    painter->drawEllipse(ring.adjusted(-1, -1, 1, 1));
+
+    // Center dot marks the click hotspot. Filled dark, with a light halo.
+    const QRectF dot(c.x() - 2, c.y() - 2, 4, 4);
+    painter->setPen(darkPen);
+    painter->setBrush(QColor(0, 0, 0, 220));
+    painter->drawEllipse(dot);
+
+    painter->setPen(lightPen);
+    painter->setBrush(Qt::NoBrush);
+    painter->drawEllipse(dot.adjusted(-1, -1, 1, 1));
+
+    painter->restore();
 }

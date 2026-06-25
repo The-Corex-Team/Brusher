@@ -20,6 +20,14 @@ ToolOptionsBar::ToolOptionsBar(CanvasWidget *canvas, QWidget *parent)
     m_stack = new QStackedWidget(this);
     setupPages();
     addWidget(m_stack);
+
+    // Stay in sync with changes that originate outside the bar — the
+    // Ctrl+Alt+wheel brush-size shortcut and the right-click Brush
+    // Settings popup both write to CanvasWidget directly.
+    connect(m_canvas, &CanvasWidget::brushSizeChanged,
+            this, &ToolOptionsBar::onCanvasBrushSizeChanged);
+    connect(m_canvas, &CanvasWidget::brushOpacityChanged,
+            this, &ToolOptionsBar::onCanvasBrushOpacityChanged);
 }
 
 void ToolOptionsBar::setupPages()
@@ -149,12 +157,12 @@ QWidget* ToolOptionsBar::createLineOptions()
     l->setSpacing(10);
 
     l->addWidget(new QLabel(tr("Weight:")));
-    QSpinBox *weightSpinBox = new QSpinBox();
-    weightSpinBox->setRange(1, 100);
-    weightSpinBox->setValue(m_canvas->brushSize());
-    connect(weightSpinBox, qOverload<int>(&QSpinBox::valueChanged), this, &ToolOptionsBar::onBrushSizeChanged);
+    m_lineWeightSpinBox = new QSpinBox();
+    m_lineWeightSpinBox->setRange(1, 100);
+    m_lineWeightSpinBox->setValue(m_canvas->brushSize());
+    connect(m_lineWeightSpinBox, qOverload<int>(&QSpinBox::valueChanged), this, &ToolOptionsBar::onBrushSizeChanged);
 
-    l->addWidget(weightSpinBox);
+    l->addWidget(m_lineWeightSpinBox);
     l->addWidget(new QLabel(tr("px")));
     l->addStretch();
     return w;
@@ -240,4 +248,36 @@ void ToolOptionsBar::onBrushOpacityChanged(int opacity)
 void ToolOptionsBar::onToleranceChanged(int tolerance)
 {
     m_canvas->setFillTolerance(tolerance);
+}
+
+void ToolOptionsBar::onCanvasBrushSizeChanged(int size)
+{
+    // Push the new size into every brush-size control the bar owns. Use
+    // QSignalBlocker so we don't bounce the value back through
+    // onBrushSizeChanged and re-emit the canvas signal.
+    if (m_brushSizeSlider) {
+        QSignalBlocker b(m_brushSizeSlider);
+        m_brushSizeSlider->setValue(size);
+    }
+    if (m_brushSizeSpinBox) {
+        QSignalBlocker b(m_brushSizeSpinBox);
+        m_brushSizeSpinBox->setValue(size);
+    }
+    if (m_lineWeightSpinBox) {
+        QSignalBlocker b(m_lineWeightSpinBox);
+        m_lineWeightSpinBox->setValue(size);
+    }
+}
+
+void ToolOptionsBar::onCanvasBrushOpacityChanged(int opacity)
+{
+    const int percent = (opacity * 100 + 127) / 255;
+    if (m_opacitySlider) {
+        QSignalBlocker b(m_opacitySlider);
+        m_opacitySlider->setValue(percent);
+    }
+    if (m_opacitySpinBox) {
+        QSignalBlocker b(m_opacitySpinBox);
+        m_opacitySpinBox->setValue(percent);
+    }
 }

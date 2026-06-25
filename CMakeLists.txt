@@ -9,10 +9,10 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-# Qt
+include(GNUInstallDirs)
+
 find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Svg)
 
-# Sources
 set(SOURCES
     src/main.cpp
 
@@ -76,15 +76,30 @@ set(SOURCES
     src/ui/BrusherTheme.cpp
     src/ui/BrusherTheme.h
 
+    src/ui/BrushSettingsPopup.cpp
+    src/ui/BrushSettingsPopup.h
+
     resources.qrc
 )
 
-add_executable(Brusher WIN32 ${SOURCES})
+add_executable(brusher WIN32 ${SOURCES})
 
-target_include_directories(Brusher PRIVATE src)
+target_include_directories(brusher PRIVATE src)
 
-target_link_libraries(Brusher PRIVATE
+target_link_libraries(brusher PRIVATE
     Qt6::Widgets
     Qt6::OpenGLWidgets
     Qt6::Svg
+)
+
+install(TARGETS brusher
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(FILES packaging/linux/brusher.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
+
+install(FILES assets/brusher.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
 )

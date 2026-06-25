@@ -19,6 +19,7 @@ public:
 
     int currentIndex() const { return m_currentIndex; }
     const std::vector<DocumentSnapshot> &states() const { return m_states; }
+    std::vector<DocumentSnapshot> &mutableStates() { return m_states; }
     void restoreStates(const std::vector<DocumentSnapshot> &states, int index);
 
 private:

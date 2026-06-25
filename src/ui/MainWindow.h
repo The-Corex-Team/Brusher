@@ -12,6 +12,7 @@ class ColorPanel;
 class LayerPanel;
 class ToolOptionsBar;
 class QLabel;
+class QCloseEvent;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -51,14 +52,25 @@ private slots:
     void on_actionZoomOut_triggered();
     void on_actionFitToWindow_triggered();
     void on_actionActualSize_triggered();
+    void on_actionLowMemoryMode_triggered(bool checked);
 
     void setTool(int toolType);
     void updateStatusBarZoom(double zoom);
     void updateUndoRedoActions();
     void swapColors();
+    void updateDirtyFlag();
 
 private:
     void setupStatusBar();
+    void syncLowMemoryAction();
+    bool maybeSaveBeforeClose();
+    bool saveCurrentDocument();
+    void captureSavedCursor();
+    void resetSavedCursor();
+
+protected:
+    void changeEvent(QEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
 
     Ui::MainWindow *ui;
     CanvasWidget *m_canvasWidget;
@@ -73,4 +85,14 @@ private:
 
     QColor m_fgColor;
     QColor m_bgColor;
+
+    // Dirty-tracking state. m_currentFilePath is empty for an untitled,
+    // unsaved document. The "saved" snapshot is the (history cursor,
+    // patch-undo depth, patch-redo depth) tuple at the moment of the most
+    // recent successful save / New / Open.
+    QString m_currentFilePath;
+    int m_savedHistoryIndex = 0;
+    int m_savedPatchUndoDepth = 0;
+    int m_savedPatchRedoDepth = 0;
+    bool m_applyingProgrammaticClose = false;
 };

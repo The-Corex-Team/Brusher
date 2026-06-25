@@ -16,7 +16,7 @@
 
 // Splash configuration
 const double SPLASH_SCALE = 0.50;      // 50% size
-const int SPLASH_DURATION_MS = 5000;  // 5 seconds
+const int SPLASH_DURATION_MS = 2000;  // 2 seconds
 
 class SplashWindow : public QWidget {
 public:

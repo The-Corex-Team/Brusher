@@ -9,9 +9,12 @@
 #include "dialogs/CanvasSizeDialog.h"
 
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QLabel>
 #include <QApplication>
+#include <QCloseEvent>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -20,6 +23,8 @@ MainWindow::MainWindow(QWidget *parent)
     , m_bgColor(Qt::white)
 {
     ui->setupUi(this);
+
+    ui->actionLowMemoryMode->setCheckable(true);
 
     m_canvasWidget = new CanvasWidget(this);
     setCentralWidget(m_canvasWidget);
@@ -53,10 +58,19 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_canvasWidget, &CanvasWidget::brushColorChanged, m_colorPanel, &ColorPanel::setColor);
     connect(m_canvasWidget, &CanvasWidget::zoomChanged, this, &MainWindow::updateStatusBarZoom);
     connect(m_canvasWidget, &CanvasWidget::historyChanged, this, &MainWindow::updateUndoRedoActions);
+    connect(m_canvasWidget, &CanvasWidget::lowMemoryModeChanged, this, &MainWindow::syncLowMemoryAction);
 
     updateUndoRedoActions();
     m_toolPanel->updateSwatches(m_fgColor, m_bgColor);
     setTool(0);
+
+    // Document-dirty tracking. documentEdited fires for every real content
+    // change (coarse edit, patch commit, undo/redo, project load). It does
+    // NOT fire for low-memory idle release/restore — those mutate the
+    // history storage but are not user edits.
+    connect(m_canvasWidget, &CanvasWidget::documentEdited,
+            this, &MainWindow::updateDirtyFlag);
+    updateDirtyFlag();
 }
 
 MainWindow::~MainWindow()
@@ -125,6 +139,10 @@ void MainWindow::on_actionNew_triggered()
         m_canvasWidget->newCanvas(dialog.getCanvasWidth(), dialog.getCanvasHeight());
         updateStatusBarZoom(m_canvasWidget->zoomLevel());
         updateUndoRedoActions();
+        // Fresh canvas → no file path, cursor + patch depths back to zero.
+        m_currentFilePath.clear();
+        resetSavedCursor();
+        updateDirtyFlag();
     }
 }
 
@@ -142,6 +160,13 @@ void MainWindow::on_actionOpen_triggered()
         }
         updateStatusBarZoom(m_canvasWidget->zoomLevel());
         updateUndoRedoActions();
+
+        // Treat the just-loaded document as the saved baseline. The loaded
+        // .brusher restores its persisted cursor; flat images land at index
+        // 0 with empty patch stacks. Either way, the document is clean.
+        m_currentFilePath = fileName;
+        resetSavedCursor();
+        updateDirtyFlag();
     }
 }
 
@@ -150,15 +175,24 @@ void MainWindow::on_actionSave_triggered()
     const QString fileName = QFileDialog::getSaveFileName(
         this, tr("Save Image As"), "", tr("PNG Files (*.png);;All Files (*)"));
 
-    if (!fileName.isEmpty()) {
-        QString path = fileName;
-        if (!path.endsWith(".png", Qt::CaseInsensitive)) {
-            path += ".png";
-        }
-        if (!m_canvasWidget->saveImage(path)) {
-            QMessageBox::warning(this, tr("Error"), tr("Failed to save image."));
-        }
+    if (fileName.isEmpty()) {
+        return;
     }
+
+    QString path = fileName;
+    if (!path.endsWith(".png", Qt::CaseInsensitive)) {
+        path += ".png";
+    }
+    if (!m_canvasWidget->saveImage(path)) {
+        QMessageBox::warning(this, tr("Error"), tr("Failed to save image."));
+        return;
+    }
+
+    // Save succeeded → this path is now the saved baseline. Format is
+    // PNG, so it should NOT be saved as a .brusher project later.
+    m_currentFilePath = path;
+    captureSavedCursor();
+    updateDirtyFlag();
 }
 
 void MainWindow::on_actionSaveProject_triggered()
@@ -166,15 +200,22 @@ void MainWindow::on_actionSaveProject_triggered()
     const QString fileName = QFileDialog::getSaveFileName(
         this, tr("Save Project"), "", tr("Brusher Projects (*.brusher);;All Files (*)"));
 
-    if (!fileName.isEmpty()) {
-        QString path = fileName;
-        if (!path.endsWith(".brusher", Qt::CaseInsensitive)) {
-            path += ".brusher";
-        }
-        if (!m_canvasWidget->saveProject(path)) {
-            QMessageBox::warning(this, tr("Error"), tr("Failed to save project."));
-        }
+    if (fileName.isEmpty()) {
+        return;
     }
+
+    QString path = fileName;
+    if (!path.endsWith(".brusher", Qt::CaseInsensitive)) {
+        path += ".brusher";
+    }
+    if (!m_canvasWidget->saveProject(path)) {
+        QMessageBox::warning(this, tr("Error"), tr("Failed to save project."));
+        return;
+    }
+
+    m_currentFilePath = path;
+    captureSavedCursor();
+    updateDirtyFlag();
 }
 
 void MainWindow::on_actionExport_triggered()
@@ -192,7 +233,9 @@ void MainWindow::on_actionExport_triggered()
 
 void MainWindow::on_actionExit_triggered()
 {
-    QApplication::quit();
+    // Route File > Exit and Ctrl+Q through closeEvent so the unsaved-changes
+    // prompt covers every quit path (window X, Alt+F4, menu Exit).
+    close();
 }
 
 void MainWindow::on_actionUndo_triggered()
@@ -322,4 +365,169 @@ void MainWindow::on_actionFitToWindow_triggered()
 void MainWindow::on_actionActualSize_triggered()
 {
     m_canvasWidget->actualSize();
+}
+
+void MainWindow::on_actionLowMemoryMode_triggered(bool checked)
+{
+    m_canvasWidget->setLowMemoryMode(checked);
+}
+
+void MainWindow::syncLowMemoryAction()
+{
+    QSignalBlocker blocker(ui->actionLowMemoryMode);
+    ui->actionLowMemoryMode->setChecked(m_canvasWidget->isLowMemoryMode());
+}
+
+void MainWindow::changeEvent(QEvent *event)
+{
+    QMainWindow::changeEvent(event);
+
+    if (!m_canvasWidget) {
+        return;
+    }
+
+    switch (event->type()) {
+        case QEvent::WindowStateChange: {
+            // Fires when the user minimizes, restores, maximizes, etc.
+            if (m_canvasWidget->isLowMemoryMode() && isMinimized()) {
+                m_canvasWidget->releaseIdleResources();
+            } else if (!isMinimized() && m_canvasWidget->isResourcesReleased()) {
+                m_canvasWidget->restoreIdleResources();
+            }
+            break;
+        }
+        case QEvent::WindowActivate: {
+            if (m_canvasWidget->isResourcesReleased()) {
+                m_canvasWidget->restoreIdleResources();
+            }
+            break;
+        }
+        case QEvent::WindowDeactivate: {
+            if (m_canvasWidget->isLowMemoryMode()) {
+                m_canvasWidget->releaseIdleResources();
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void MainWindow::captureSavedCursor()
+{
+    // Snapshot the history cursor + patch-stack depths so we can later
+    // detect whether the document has drifted from the last save/load.
+    m_savedHistoryIndex = m_canvasWidget->currentHistoryIndex();
+    m_savedPatchUndoDepth = m_canvasWidget->patchUndoDepth();
+    m_savedPatchRedoDepth = m_canvasWidget->patchRedoDepth();
+}
+
+void MainWindow::resetSavedCursor()
+{
+    // A fresh document (New) or a freshly loaded one (Open) is clean by
+    // definition; reset to the current cursor so the dirty check matches.
+    captureSavedCursor();
+}
+
+void MainWindow::updateDirtyFlag()
+{
+    if (!m_canvasWidget) {
+        return;
+    }
+
+    const bool dirty =
+        m_canvasWidget->currentHistoryIndex() != m_savedHistoryIndex
+        || m_canvasWidget->patchUndoDepth() != m_savedPatchUndoDepth
+        || m_canvasWidget->patchRedoDepth() != m_savedPatchRedoDepth;
+
+    setWindowModified(dirty);
+
+    // Mirror the standard Qt pattern: title shows the file name (or
+    // "Untitled") followed by the `[*]` placeholder that setWindowModified
+    // expands to either "" or "*".
+    QString title;
+    if (m_currentFilePath.isEmpty()) {
+        title = tr("Untitled");
+    } else {
+        title = QFileInfo(m_currentFilePath).fileName();
+    }
+    title += "[*] - Brusher";
+    setWindowTitle(title);
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (maybeSaveBeforeClose()) {
+        event->accept();
+    } else {
+        event->ignore();
+    }
+}
+
+bool MainWindow::maybeSaveBeforeClose()
+{
+    // Clean document (or no document loaded yet) → nothing to ask.
+    if (!isWindowModified()) {
+        return true;
+    }
+
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Warning);
+    box.setWindowTitle(tr("Unsaved Changes"));
+    box.setText(tr("The document has unsaved changes."));
+    box.setInformativeText(tr("Save changes before closing?"));
+    box.setStandardButtons(QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+    box.setDefaultButton(QMessageBox::Save);
+    switch (box.exec()) {
+        case QMessageBox::Save:   return saveCurrentDocument();
+        case QMessageBox::Discard: return true;
+        case QMessageBox::Cancel:
+        default:                   return false;
+    }
+}
+
+bool MainWindow::saveCurrentDocument()
+{
+    // Match the format of the last save/load: a .brusher path was opened
+    // from or saved to a project file, so saving again should keep all
+    // layer information. Anything else (including Untitled) defaults to
+    // PNG via the standard Save dialog.
+    const bool saveAsProject =
+        !m_currentFilePath.isEmpty() &&
+        m_currentFilePath.endsWith(".brusher", Qt::CaseInsensitive);
+
+    if (saveAsProject) {
+        QString path = m_currentFilePath;
+        if (!m_canvasWidget->saveProject(path)) {
+            QMessageBox::warning(this, tr("Error"), tr("Failed to save project."));
+            return false;
+        }
+    } else {
+        // Empty path → ask where to save (Save As PNG). Non-empty but
+        // non-.brusher path → overwrite that PNG in place.
+        QString path;
+        if (m_currentFilePath.isEmpty()) {
+            const QString fileName = QFileDialog::getSaveFileName(
+                this, tr("Save Image As"), "", tr("PNG Files (*.png);;All Files (*)"));
+            if (fileName.isEmpty()) {
+                return false; // user cancelled the save dialog
+            }
+            path = fileName;
+            if (!path.endsWith(".png", Qt::CaseInsensitive)) {
+                path += ".png";
+            }
+        } else {
+            path = m_currentFilePath;
+        }
+
+        if (!m_canvasWidget->saveImage(path)) {
+            QMessageBox::warning(this, tr("Error"), tr("Failed to save image."));
+            return false;
+        }
+        m_currentFilePath = path;
+    }
+
+    captureSavedCursor();
+    updateDirtyFlag();
+    return true;
 }

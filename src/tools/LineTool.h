@@ -10,6 +10,7 @@ public:
     void mouseReleaseEvent(QMouseEvent *event, CanvasWidget *canvas, QImage *image) override;
     
     void drawPreview(QPainter *painter, CanvasWidget *canvas) override;
+    bool isBusy() const override { return m_drawing; }
 
 private:
     QPoint m_startPoint;

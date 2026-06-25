@@ -12,6 +12,7 @@ public:
     void mouseMoveEvent(QMouseEvent *event, CanvasWidget *canvas, QImage *image) override;
     void mouseReleaseEvent(QMouseEvent *event, CanvasWidget *canvas, QImage *image) override;
     void drawPreview(QPainter *painter, CanvasWidget *canvas) override;
+    bool isBusy() const override { return m_selecting; }
 
 protected:
     virtual QPainterPath buildPath(const QPoint &start, const QPoint &end) const = 0;
