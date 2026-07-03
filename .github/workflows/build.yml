@@ -28,10 +28,30 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Qt
+      - name: Install Qt (default)
+        if: runner.os != 'macOS'
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
+          cache: true
+
+      # macOS-latest ships an SDK that no longer contains the legacy AGL
+      # framework, but the default Qt archive on macos-latest can pull it
+      # in via QtOpenGL, causing the link to fail with
+      # "ld: framework 'AGL' not found". Pin host/target/arch/modules
+      # explicitly so the install is reproducible and Qt 6's OpenGLWidgets
+      # link list resolves against the modern OpenGL framework only.
+      # qtimageformats is needed for the PNG/JPEG/BMP open paths used by
+      # CanvasWidget::openImage and ProjectSerializer.
+      - name: Install Qt (macOS, pinned)
+        if: runner.os == 'macOS'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: 'mac'
+          target: 'desktop'
+          arch: 'clang_64'
+          modules: 'qtimageformats'
           cache: true
 
       - name: Clean CMake Cache (Unix)

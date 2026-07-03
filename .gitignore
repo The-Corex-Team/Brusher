@@ -18,3 +18,11 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 *.idx
+RELEASE_NOTES.txt
+*.log
+*.zip
+*.tar.gz
+*.7z
+*.swp
+*.swo
+*.DS_Store
