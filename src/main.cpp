@@ -66,6 +66,17 @@ private:
 
 int main(int argc, char *argv[])
 {
+    // Prefer Wayland; fall back to X11. Qt tries each plugin in order and
+    // uses the first that initializes successfully. Set before constructing
+    // QApplication so it takes effect on the first platform lookup. This
+    // affects AppImage, system installs, and dev runs identically.
+    qputenv("QT_QPA_PLATFORM", "wayland;xcb");
+
+    // Keep the RHI on OpenGL. QOpenGLWidget-based canvases render more
+    // reliably on Wayland with OpenGL than with Vulkan, especially on
+    // NVIDIA drivers where Vulkan+Wayland is still bumpy.
+    qputenv("QSG_RHI_BACKEND", "opengl");
+
     QSurfaceFormat surfaceFormat;
     surfaceFormat.setDepthBufferSize(0);
     surfaceFormat.setStencilBufferSize(0);
