@@ -73,13 +73,13 @@ jobs:
         run: |
           $qtPath = "${{ env.QT_ROOT_DIR }}"
           $windeployqt = "$qtPath\bin\windeployqt.exe"
-          & $windeployqt "${{ github.workspace }}\build\Release\Brusher.exe" --dir "${{ github.workspace }}\build\Release"
+          & $windeployqt "${{ github.workspace }}\build\Release\brusher.exe" --dir "${{ github.workspace }}\build\Release" --release --no-translations --no-system-d3d-compiler --no-opengl-sw --compiler-runtime
 
       - name: Deploy Qt (macOS)
         if: runner.os == 'macOS'
         run: |
           qtPath="${{ env.QT_ROOT_DIR }}"
-          macdeployqt "${{ github.workspace }}/build/Brusher.app" -dmg
+          macdeployqt "${{ github.workspace }}/build/brusher.app" -dmg
           ls -la build/
 
       - name: Package (Ubuntu)
