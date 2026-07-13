@@ -69,7 +69,35 @@ jobs:
           if (Test-Path build) { Remove-Item -Recurse -Force build }
           if (Test-Path AppDir\usr) { Remove-Item -Recurse -Force AppDir\usr }
 
+      # macOS 15's SDK removed the legacy AGL.framework, but Qt 6's link
+      # interface still hands the linker a "-framework AGL", which aborts the
+      # build with "ld: framework 'AGL' not found". Qt never calls an AGL
+      # symbol at runtime, so we give the linker an empty stub framework purely
+      # to satisfy resolution; the -dead_strip_dylibs flag on the configure
+      # step below then drops the unused AGL load command, leaving a binary
+      # with no AGL dependency (safe to ship to end-user Macs that also lack
+      # AGL).
+      - name: Create AGL framework stub (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          STUB="$RUNNER_TEMP/fake-frameworks"
+          FW="$STUB/AGL.framework"
+          mkdir -p "$FW"
+          echo 'static int _brusher_agl_stub;' > "$RUNNER_TEMP/agl_stub.c"
+          clang -dynamiclib -o "$FW/AGL" \
+              -install_name @rpath/AGL.framework/AGL \
+              "$RUNNER_TEMP/agl_stub.c"
+          echo "AGL_STUB_DIR=$STUB" >> "$GITHUB_ENV"
+
+      - name: Configure CMake (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+              "-DCMAKE_EXE_LINKER_FLAGS=-F$AGL_STUB_DIR -Wl,-dead_strip_dylibs"
+
       - name: Configure CMake
+        if: runner.os != 'macOS'
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
@@ -101,18 +129,15 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           # CPack's NSIS generator needs makensis on PATH. windows-latest
-          # doesn't ship it, so grab the portable 3.x release.
-          $nsisVersion = '3.10'
-          $nsisZip = "nsis-$nsisVersion.zip"
-          $nsisUrl = "https://sourceforge.net/projects/nsis/files/NSIS%203/$nsisVersion/$nsisZip/download"
-          $nsisRoot = 'C:\nsis'
-          if (-not (Test-Path "$nsisRoot\makensis.exe")) {
-              New-Item -ItemType Directory -Path $nsisRoot -Force | Out-Null
-              Invoke-WebRequest -Uri $nsisUrl -OutFile "$env:RUNNER_TEMP\$nsisZip"
-              Expand-Archive -Path "$env:RUNNER_TEMP\$nsisZip" -DestinationPath $nsisRoot -Force
-          }
-          echo "$nsisRoot" | Out-File -FilePath $env:GITHUB_PATH -Append
+          # doesn't ship it. Chocolatey is preinstalled on the runner and
+          # gives us a reliable NSIS install — far more robust than scraping
+          # SourceForge's /download redirect (which returns an HTML page that
+          # Expand-Archive can't unzip).
+          choco install nsis -y --no-progress
+          # Expose the real makensis dir so CPack finds it directly.
+          "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Build NSIS installer (Windows)
         if: runner.os == 'Windows'
@@ -242,7 +267,13 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf AppDir/usr
-          DESTDIR="$PWD/AppDir" cmake --install build --config Release
+          # --prefix /usr (combined with DESTDIR) installs into AppDir/usr/bin
+          # and AppDir/usr/share, which is what linuxdeploy scans. Without it
+          # CMake's default /usr/local prefix drops the binary in
+          # AppDir/usr/local/bin, so linuxdeploy's qt plugin finds no
+          # Qt-linked binary and fails with "Could not find Qt modules to
+          # deploy".
+          DESTDIR="$PWD/AppDir" cmake --install build --config Release --prefix /usr
 
       - name: Bundle Qt with linuxdeploy (Linux)
         if: runner.os == 'Linux'
