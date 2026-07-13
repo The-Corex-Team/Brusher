@@ -11,7 +11,7 @@ set(CMAKE_AUTORCC ON)
 
 include(GNUInstallDirs)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Svg)
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets Svg)
 
 set(SOURCES
     src/main.cpp
@@ -86,7 +86,13 @@ add_executable(brusher MACOSX_BUNDLE WIN32 ${SOURCES})
 
 target_include_directories(brusher PRIVATE src)
 
+# Note: Qt6::OpenGL is listed before Qt6::OpenGLWidgets so the link
+# order picks up the modern OpenGL.framework. Without it, on
+# macOS 14+ (where AGL.framework is gone) the link of OpenGLWidgets
+# fails with "ld: framework 'AGL' not found". Linking Qt6::OpenGL
+# first pulls in the correct modern OpenGL framework.
 target_link_libraries(brusher PRIVATE
+    Qt6::OpenGL
     Qt6::Widgets
     Qt6::OpenGLWidgets
     Qt6::Svg
