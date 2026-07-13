@@ -117,6 +117,20 @@ install(TARGETS brusher
     BUNDLE DESTINATION .
 )
 
+# On Windows, windeployqt (run in CI right after the build) stages the Qt
+# runtime DLLs, the MSVC runtime, and the plugin folders (platforms/,
+# imageformats/, styles/, ...) next to build/Release/brusher.exe. CPack only
+# packages files covered by install() rules, so install(TARGETS) alone yields
+# an NSIS installer that contains brusher.exe and nothing else. Install the
+# whole deployed Release directory into bin so the installer is self-contained.
+# (CI always builds the multi-config Release layout under build/Release.)
+if(WIN32)
+    install(DIRECTORY "${CMAKE_BINARY_DIR}/Release/"
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+        USE_SOURCE_PERMISSIONS
+    )
+endif()
+
 install(FILES packaging/brusher.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
     RENAME brusher.desktop

@@ -187,12 +187,11 @@ jobs:
         run: |
           set -euo pipefail
           # `add_executable(... MACOSX_BUNDLE ...)` in CMakeLists.txt
-          # produces build/brusher.app; macdeployqt bundles Qt
-          # frameworks and imageformats plugins in place.
-          macdeployqt "${{ github.workspace }}/build/brusher.app" \
-              -qmldir=. \
-              -imageformats \
-              -dmg
+          # produces build/brusher.app; macdeployqt bundles Qt frameworks and
+          # all imageformats plugins by default. There is no -imageformats flag
+          # (passing it aborts with "Unknown argument"), and the app ships no
+          # QML so -qmldir is dropped.
+          macdeployqt "${{ github.workspace }}/build/brusher.app" -dmg
           ls -la build/
 
       - name: Verify Qt frameworks + imageformats deployed (macOS)
@@ -322,12 +321,15 @@ jobs:
                   missing+=("$lib")
               fi
           done
-          if ! find AppDir/usr/lib/plugins/imageformats -name 'libqjpeg.so' -print -quit | grep -q .; then
-              missing+=("imageformats/libqjpeg.so")
-          fi
-          if ! find AppDir/usr/lib/plugins/imageformats -name 'libqgif.so' -print -quit | grep -q .; then
-              missing+=("imageformats/libqgif.so")
-          fi
+          # linuxdeploy-plugin-qt stages Qt plugins under AppDir/usr/plugins
+          # (with a generated usr/bin/qt.conf pointing there), not under
+          # usr/lib/plugins. Search the whole AppDir so the check is robust to
+          # the exact layout.
+          for plug in libqjpeg.so libqgif.so; do
+              if ! find AppDir -type f -path "*/imageformats/$plug" -print -quit | grep -q .; then
+                  missing+=("imageformats/$plug")
+              fi
+          done
           if [ ${#missing[@]} -ne 0 ]; then
               echo "::error::Missing deployed files:"
               printf '  - %s\n' "${missing[@]}"
