@@ -82,7 +82,7 @@ set(SOURCES
     resources.qrc
 )
 
-add_executable(brusher WIN32 ${SOURCES})
+add_executable(brusher MACOSX_BUNDLE WIN32 ${SOURCES})
 
 target_include_directories(brusher PRIVATE src)
 
@@ -92,14 +92,72 @@ target_link_libraries(brusher PRIVATE
     Qt6::Svg
 )
 
+# macOS bundle metadata — drives `macdeployqt` and is what shows up in
+# Finder / `mdls` output. `MACOSX_BUNDLE` on add_executable already
+# triggers CMake to build a `.app`; the properties below fill in the
+# Info.plist.
+set_target_properties(brusher PROPERTIES
+    MACOSX_BUNDLE TRUE
+    MACOSX_BUNDLE_BUNDLE_NAME "Brusher"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.brusher.app"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_COPYRIGHT "© Brusher"
+    MACOSX_BUNDLE_INFO_STRING "Brusher ${PROJECT_VERSION}"
+)
+
 install(TARGETS brusher
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    BUNDLE DESTINATION .
 )
 
-install(FILES packaging/linux/brusher.desktop
+install(FILES packaging/brusher.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+    RENAME brusher.desktop
 )
 
-install(FILES assets/brusher.png
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
+# The repo's icon lives at packaging/icons/Brusher.svg; install the SVG
+# into the scalable apps directory so deb / AppImage / Windows shortcut
+# all pick it up. (Earlier revisions referenced a non-existent
+# assets/brusher.png — replaced.)
+install(FILES packaging/icons/Brusher.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME brusher.svg
 )
+
+# ---------------------------------------------------------------------------
+# CPack — produces a .deb on Linux and an NSIS installer on Windows.
+# The generator is chosen at run time via `cpack -G <gen>`, so we leave
+# CPACK_GENERATOR unset here; include(CPack) at the bottom of the file
+# is what tells CMake to read these variables.
+# ---------------------------------------------------------------------------
+set(CPACK_PACKAGE_NAME "Brusher")
+set(CPACK_PACKAGE_VENDOR "Brusher")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Modern Painting Application")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/walter-322/Brusher")
+set(CPACK_PACKAGE_CONTACT "Brusher")
+
+# Debian / Ubuntu (.deb)
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Brusher")
+set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
+set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+# SHLIBDEPS auto-resolves the Qt6 .so dependencies at cpack-time, so we
+# don't need to enumerate them by hand.
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "")
+set(CPACK_DEBIAN_POSTINST_SCRIPT "${CMAKE_SOURCE_DIR}/packaging/postinst")
+set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+
+# Windows NSIS installer
+set(CPACK_NSIS_DISPLAY_NAME "Brusher")
+set(CPACK_NSIS_PACKAGE_NAME "Brusher")
+# CPack's NSIS template auto-detects brusher.svg from the install tree
+# at CPack time, so we don't need CPACK_NSIS_INSTALLED_ICON_FILE.
+set(CPACK_NSIS_CREATE_ICONS_EXTRA
+    "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Brusher.lnk' '$INSTDIR\\\\bin\\\\brusher.exe'")
+set(CPACK_NSIS_DELETE_ICONS_EXTRA
+    "Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Brusher.lnk'")
+set(CPACK_NSIS_URL_INFO_ABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
+
+include(CPack)
