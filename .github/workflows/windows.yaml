@@ -1,0 +1,101 @@
+name: Build Brusher - Windows
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Windows
+    runs-on: windows-latest
+
+    env:
+      QT_VERSION: '6.8.3'
+      QT_MODULES: 'qtimageformats'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          modules: ${{ env.QT_MODULES }}
+          cache: true
+
+      - name: Clean Build
+        shell: pwsh
+        run: |
+          if (Test-Path build) {
+            Remove-Item -Recurse -Force build
+          }
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Deploy Qt
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $windeployqt = Join-Path `
+            $env:QT_ROOT_DIR `
+            'bin\windeployqt.exe'
+
+          & $windeployqt `
+            "${{ github.workspace }}\build\Release\brusher.exe" `
+            --dir "${{ github.workspace }}\build\Release" `
+            --release `
+            --no-translations `
+            --no-system-d3d-compiler `
+            --no-opengl-sw `
+            --compiler-runtime
+
+      - name: Verify imageformats
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $imageDir = 'build\Release\imageformats'
+
+          if (-not (Test-Path $imageDir)) {
+            throw "imageformats directory is missing"
+          }
+
+          foreach ($plugin in @(
+            'qjpeg.dll',
+            'qgif.dll'
+          )) {
+            if (-not (Test-Path "$imageDir\$plugin")) {
+              throw "Missing image plugin: $plugin"
+            }
+          }
+
+          Write-Host "Qt imageformats:"
+          Get-ChildItem $imageDir -Filter '*.dll'
+
+      - name: Create Windows ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path build\Release\* `
+            -DestinationPath Brusher-Windows.zip `
+            -Force
+
+          Get-Item Brusher-Windows.zip |
+            Format-Table Name, Length
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brusher-Windows
+          path: Brusher-Windows.zip

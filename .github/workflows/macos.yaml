@@ -1,0 +1,122 @@
+name: Build Brusher - macOS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build macOS
+    runs-on: macos-latest
+
+    env:
+      QT_VERSION: '6.8.3'
+      QT_MODULES: 'qtimageformats'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: mac
+          target: desktop
+          arch: clang_64
+          modules: ${{ env.QT_MODULES }}
+          cache: true
+
+      - name: Clean Build
+        run: |
+          rm -rf build
+          rm -rf AppDir
+
+      - name: Create AGL framework stub
+        run: |
+          set -euo pipefail
+
+          STUB="$RUNNER_TEMP/fake-frameworks"
+          FW="$STUB/AGL.framework"
+
+          mkdir -p "$FW"
+
+          echo 'static int _brusher_agl_stub;' \
+            > "$RUNNER_TEMP/agl_stub.c"
+
+          clang -dynamiclib \
+            -o "$FW/AGL" \
+            -install_name @rpath/AGL.framework/AGL \
+            "$RUNNER_TEMP/agl_stub.c"
+
+          echo "AGL_STUB_DIR=$STUB" >> "$GITHUB_ENV"
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            "-DCMAKE_EXE_LINKER_FLAGS=-F$AGL_STUB_DIR -Wl,-dead_strip_dylibs"
+
+      - name: Build
+        run: |
+          cmake --build build \
+            --config Release \
+            --parallel
+
+      - name: Deploy Qt
+        run: |
+          set -euo pipefail
+
+          macdeployqt \
+            "${{ github.workspace }}/build/brusher.app" \
+            -dmg
+
+          ls -la build/
+
+      - name: Verify Qt deployment
+        run: |
+          set -euo pipefail
+
+          APP="build/brusher.app"
+
+          for fw in \
+            QtCore \
+            QtGui \
+            QtWidgets \
+            QtOpenGL \
+            QtOpenGLWidgets \
+            QtSvg
+          do
+            if [ ! -d "$APP/Contents/Frameworks/$fw.framework" ]; then
+              echo "::error::Missing framework: $fw"
+              exit 1
+            fi
+          done
+
+          if [ ! -d "$APP/Contents/PlugIns/imageformats" ]; then
+            echo "::error::Missing imageformats plugin directory"
+            exit 1
+          fi
+
+          for plug in \
+            libqjpeg.dylib \
+            libqgif.dylib
+          do
+            if [ ! -f "$APP/Contents/PlugIns/imageformats/$plug" ]; then
+              echo "::error::Missing imageformats plugin: $plug"
+              exit 1
+            fi
+          done
+
+          ls "$APP/Contents/PlugIns/imageformats/"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brusher-macOS
+          path: |
+            build/*.dmg
+            build/brusher.app

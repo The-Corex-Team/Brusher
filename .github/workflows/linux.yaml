@@ -1,0 +1,106 @@
+name: Build Brusher - Linux
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Linux
+    runs-on: ubuntu-latest
+
+    env:
+      QT_VERSION: '6.8.3'
+      QT_MODULES: 'qtimageformats'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          modules: ${{ env.QT_MODULES }}
+          cache: true
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1-mesa-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-0 \
+            libfontconfig1 \
+            libfreetype6 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-sync1 \
+            libxcb-xfixes0 \
+            libxcb-xinerama0 \
+            libxcb-xkb1 \
+            libxcb-render0 \
+            libxcb-shm0 \
+            libxcb-util1 \
+            libxcb1 \
+            libxext6 \
+            libx11-6 \
+            libsm6 \
+            libice6 \
+            libxrender1 \
+            libdbus-1-3 \
+            libglib2.0-0 \
+            zlib1g \
+            libegl1 \
+            libgles2 \
+            file \
+            desktop-file-utils
+
+      - name: Clean Build
+        run: |
+          rm -rf build
+          rm -rf AppDir
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build \
+            --config Release \
+            --parallel
+
+      - name: Install into portable directory
+        run: |
+          set -euo pipefail
+
+          mkdir -p AppDir
+
+          DESTDIR="$PWD/AppDir" \
+            cmake --install build \
+            --config Release \
+            --prefix /usr
+
+      - name: Create Linux portable archive
+        run: |
+          set -euo pipefail
+
+          tar -czf Brusher-Linux.tar.gz AppDir/
+
+          ls -lh Brusher-Linux.tar.gz
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brusher-Linux
+          path: Brusher-Linux.tar.gz
