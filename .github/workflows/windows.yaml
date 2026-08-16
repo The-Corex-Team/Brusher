@@ -20,14 +20,18 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Pin the whole build to MSVC 2022 x64 and run cmake/msbuild from
-      # within that environment. Each GitHub Actions step starts a fresh
-      # shell, so exporting PATH/INCLUDE/LIB in one step (via
-      # ilammy/msvc-dev-cmd) does NOT carry into the next — the next
-      # cmake invocation would see no Visual Studio at all and fail
-      # with "could not find any instance of Visual Studio". We do it
-      # by hand here: invoke vcvars64.bat in the same cmd shell that
-      # runs cmake.
+      # Install Visual Studio 2022 Build Tools (cl.exe, MSBuild, vcvars64.bat).
+      # windows-latest does NOT come with MSVC pre-installed — without this
+      # step, the locate-vcvars step below fails and so does CMake.
+      - name: Install MSVC 2022 Build Tools
+        uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+
+      # Install Qt6 with the MSVC 2022 x64 toolchain. Leaving host/target/
+      # arch unspecified used to let the action pick MinGW, which produced
+      # a Qt build whose ABI didn't match the MSVC compiler the rest of the
+      # job used — the resulting binary crashed silently on startup.
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -38,14 +42,15 @@ jobs:
           modules: ${{ env.QT_MODULES }}
           cache: true
 
+      # Find vcvars64.bat. Every step that needs MSVC calls it inline,
+      # because each GH Actions step starts a fresh shell — MSVC env
+      # does not carry across steps.
       - name: Locate vcvars64.bat
         id: vcvars
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
-          # Prefer the Visual Studio 2022 Build Tools, fall back to
-          # the full VS2022 install if present.
           $candidates = @(
             "${env:ProgramFiles}\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat",
             "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat",
