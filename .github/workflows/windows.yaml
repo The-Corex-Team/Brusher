@@ -20,20 +20,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Pin the whole build to MSVC 2022 x64. Without this, GitHub's
-      # windows-latest image defaults to MSVC, but PATH/INCLUDE/LIB
-      # are not exported into the step shell, so a later `cmake` and
-      # `windeployqt` invocation can fail or pick the wrong compiler.
-      - name: Set up MSVC 2022 x64
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      # Install Qt6 with the same MSVC 2022 x64 toolchain. Leaving the
-      # host/tool unspecified used to let the action pick MinGW, which
-      # then built against a Qt compiled for MSVC and produced a binary
-      # that crashed silently at startup (GUI subsystem app, no console
-      # to print the error).
+      # Pin the whole build to MSVC 2022 x64 and run cmake/msbuild from
+      # within that environment. Each GitHub Actions step starts a fresh
+      # shell, so exporting PATH/INCLUDE/LIB in one step (via
+      # ilammy/msvc-dev-cmd) does NOT carry into the next — the next
+      # cmake invocation would see no Visual Studio at all and fail
+      # with "could not find any instance of Visual Studio". We do it
+      # by hand here: invoke vcvars64.bat in the same cmd shell that
+      # runs cmake.
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -44,6 +38,29 @@ jobs:
           modules: ${{ env.QT_MODULES }}
           cache: true
 
+      - name: Locate vcvars64.bat
+        id: vcvars
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # Prefer the Visual Studio 2022 Build Tools, fall back to
+          # the full VS2022 install if present.
+          $candidates = @(
+            "${env:ProgramFiles}\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat",
+            "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat",
+            "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat",
+            "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
+          )
+
+          $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $found) {
+            throw "Could not find vcvars64.bat in: $($candidates -join ', ')"
+          }
+
+          Write-Host "Using vcvars: $found"
+          "vcvars=$found" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Clean Build
         shell: pwsh
         run: |
@@ -51,33 +68,37 @@ jobs:
             Remove-Item -Recurse -Force build
           }
 
-      # Force the Visual Studio 17 2022 generator with the x64 platform.
-      # Multi-config generators produce build/Release/, which is what the
-      # deploy + packaging steps expect.
+      # Configure + build under MSVC's vcvars64 environment. The
+      # Visual Studio 17 2022 generator with the x64 platform matches
+      # the Qt toolchain that install-qt-action pulled in. Multi-config
+      # generators produce build/Release/, which the deploy step expects.
       - name: Configure CMake
+        shell: cmd
         run: |
+          call "${{ steps.vcvars.outputs.vcvars }}" >NUL
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
+        shell: cmd
         run: |
+          call "${{ steps.vcvars.outputs.vcvars }}" >NUL
           cmake --build build --config Release --parallel
 
       - name: Deploy Qt
-        shell: pwsh
+        shell: cmd
         run: |
-          $ErrorActionPreference = 'Stop'
-
-          $windeployqt = Join-Path `
-            $env:QT_ROOT_DIR `
-            'bin\windeployqt.exe'
-
-          & $windeployqt `
-            "${{ github.workspace }}\build\Release\brusher.exe" `
-            --dir "${{ github.workspace }}\build\Release" `
-            --release `
-            --no-translations `
-            --no-system-d3d-compiler `
-            --no-opengl-sw `
+          call "${{ steps.vcvars.outputs.vcvars }}" >NUL
+          if "%QT_ROOT_DIR%"=="" (
+            echo QT_ROOT_DIR is not set — install-qt-action did not run.
+            exit /b 1
+          )
+          "%QT_ROOT_DIR%\bin\windeployqt.exe" ^
+            "%GITHUB_WORKSPACE%\build\Release\brusher.exe" ^
+            --dir "%GITHUB_WORKSPACE%\build\Release" ^
+            --release ^
+            --no-translations ^
+            --no-system-d3d-compiler ^
+            --no-opengl-sw ^
             --compiler-runtime
 
       - name: Verify imageformats
