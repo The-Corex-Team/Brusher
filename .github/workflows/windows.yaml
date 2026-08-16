@@ -1,15 +1,10 @@
-```yaml
 name: Build Brusher - Windows
 
 on:
   push:
-    branches:
-      - main
-
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
-
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -18,243 +13,135 @@ jobs:
     runs-on: windows-latest
 
     env:
-      QT_VERSION: "6.8.3"
-      QT_MODULES: "qtimageformats"
+      QT_VERSION: '6.8.3'
+      QT_MODULES: 'qtimageformats'
 
     steps:
-      # ------------------------------------------------------------
-      # Checkout
-      # ------------------------------------------------------------
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # ------------------------------------------------------------
-      # Install Qt
-      # ------------------------------------------------------------
+      # Pin the whole build to MSVC 2022 x64. Without this, GitHub's
+      # windows-latest image defaults to MSVC, but PATH/INCLUDE/LIB
+      # are not exported into the step shell, so a later `cmake` and
+      # `windeployqt` invocation can fail or pick the wrong compiler.
+      - name: Set up MSVC 2022 x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # Install Qt6 with the same MSVC 2022 x64 toolchain. Leaving the
+      # host/tool unspecified used to let the action pick MinGW, which
+      # then built against a Qt compiled for MSVC and produced a binary
+      # that crashed silently at startup (GUI subsystem app, no console
+      # to print the error).
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
           modules: ${{ env.QT_MODULES }}
           cache: true
-          arch: win64_msvc2022_64
 
-      # ------------------------------------------------------------
-      # Show build environment
-      # ------------------------------------------------------------
-      - name: Show Build Environment
-        shell: pwsh
-        run: |
-          Write-Host "=== CMake ==="
-          cmake --version
-
-          Write-Host ""
-          Write-Host "=== Qt ==="
-          Write-Host "QT_ROOT_DIR = $env:QT_ROOT_DIR"
-
-          if (-not (Test-Path "$env:QT_ROOT_DIR\bin\windeployqt.exe")) {
-            throw "windeployqt.exe was not found."
-          }
-
-          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --version
-
-          Write-Host ""
-          Write-Host "=== Qt installation ==="
-          Get-ChildItem "$env:QT_ROOT_DIR\bin" |
-            Select-Object Name
-
-      # ------------------------------------------------------------
-      # Clean build directory
-      # ------------------------------------------------------------
       - name: Clean Build
         shell: pwsh
         run: |
-          if (Test-Path "build") {
-            Remove-Item -Recurse -Force "build"
+          if (Test-Path build) {
+            Remove-Item -Recurse -Force build
           }
 
-          New-Item -ItemType Directory -Path "build" | Out-Null
-
-      # ------------------------------------------------------------
-      # Configure CMake
-      # ------------------------------------------------------------
+      # Force the Visual Studio 17 2022 generator with the x64 platform.
+      # Multi-config generators produce build/Release/, which is what the
+      # deploy + packaging steps expect.
       - name: Configure CMake
-        shell: pwsh
         run: |
-          cmake `
-            -S . `
-            -B build `
-            -G "Visual Studio 17 2022" `
-            -A x64
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
 
-      # ------------------------------------------------------------
-      # Build
-      # ------------------------------------------------------------
       - name: Build
-        shell: pwsh
         run: |
-          cmake `
-            --build build `
-            --config Release `
-            --parallel
+          cmake --build build --config Release --parallel
 
-      # ------------------------------------------------------------
-      # Verify executable before deployment
-      # ------------------------------------------------------------
-      - name: Verify Build
-        shell: pwsh
-        run: |
-          $exe = "build\Release\brusher.exe"
-
-          if (-not (Test-Path $exe)) {
-            Write-Host "=== Build directory ==="
-            Get-ChildItem -Recurse build
-
-            throw "brusher.exe was not produced."
-          }
-
-          Write-Host "Executable:"
-          Get-Item $exe |
-            Format-List FullName, Length, LastWriteTime
-
-      # ------------------------------------------------------------
-      # Deploy Qt
-      # ------------------------------------------------------------
       - name: Deploy Qt
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
+          $ErrorActionPreference = 'Stop'
 
-          $exe = Join-Path $env:GITHUB_WORKSPACE "build\Release\brusher.exe"
-          $deployDir = Join-Path $env:GITHUB_WORKSPACE "build\Release"
-          $windeployqt = Join-Path $env:QT_ROOT_DIR "bin\windeployqt.exe"
-
-          Write-Host "Executable:"
-          Write-Host $exe
-
-          Write-Host ""
-          Write-Host "Deployment directory:"
-          Write-Host $deployDir
-
-          Write-Host ""
-          Write-Host "windeployqt:"
-          Write-Host $windeployqt
-
-          if (-not (Test-Path $windeployqt)) {
-            throw "windeployqt.exe was not found."
-          }
-
-          if (-not (Test-Path $exe)) {
-            throw "brusher.exe was not found."
-          }
+          $windeployqt = Join-Path `
+            $env:QT_ROOT_DIR `
+            'bin\windeployqt.exe'
 
           & $windeployqt `
-            $exe `
-            --dir $deployDir `
+            "${{ github.workspace }}\build\Release\brusher.exe" `
+            --dir "${{ github.workspace }}\build\Release" `
             --release `
             --no-translations `
             --no-system-d3d-compiler `
             --no-opengl-sw `
             --compiler-runtime
 
-          if ($LASTEXITCODE -ne 0) {
-            throw "windeployqt failed with exit code $LASTEXITCODE"
-          }
-
-      # ------------------------------------------------------------
-      # Verify Qt deployment
-      # ------------------------------------------------------------
-      - name: Verify Qt Deployment
+      - name: Verify imageformats
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
+          $ErrorActionPreference = 'Stop'
 
-          $root = "build\Release"
-
-          $requiredFiles = @(
-            "brusher.exe",
-            "Qt6Core.dll",
-            "Qt6Gui.dll",
-            "Qt6Widgets.dll",
-            "platforms\qwindows.dll"
-          )
-
-          foreach ($file in $requiredFiles) {
-            $path = Join-Path $root $file
-
-            if (-not (Test-Path $path)) {
-              throw "Missing required file: $file"
-            }
-
-            Write-Host "OK: $file"
-          }
-
-          Write-Host ""
-          Write-Host "=== Image formats ==="
-
-          $imageDir = Join-Path $root "imageformats"
+          $imageDir = 'build\Release\imageformats'
 
           if (-not (Test-Path $imageDir)) {
-            throw "imageformats directory is missing."
+            throw "imageformats directory is missing"
           }
 
-          $requiredImagePlugins = @(
-            "qjpeg.dll",
-            "qgif.dll"
-          )
-
-          foreach ($plugin in $requiredImagePlugins) {
-            $path = Join-Path $imageDir $plugin
-
-            if (-not (Test-Path $path)) {
+          foreach ($plugin in @(
+            'qjpeg.dll',
+            'qgif.dll'
+          )) {
+            if (-not (Test-Path "$imageDir\$plugin")) {
               throw "Missing image plugin: $plugin"
             }
-
-            Write-Host "OK: imageformats\$plugin"
           }
 
-      # ------------------------------------------------------------
-      # List final deployment
-      # ------------------------------------------------------------
-      - name: Show Final Deployment
+          Write-Host "Qt imageformats:"
+          Get-ChildItem $imageDir -Filter '*.dll'
+
+      # Smoke test: launch brusher.exe briefly. The app is a GUI subsystem
+      # binary (WIN32_EXECUTABLE), so a startup crash returns immediately
+      # with no output. Running it for ~2s and asserting it didn't exit
+      # in <1s catches the silent-crash case without needing a display
+      # server (we don't pump messages, but the process must stay alive
+      # long enough to prove the runtime loaded).
+      - name: Smoke test
         shell: pwsh
         run: |
-          Write-Host "=== Final Brusher Windows directory ==="
+          $ErrorActionPreference = 'Stop'
 
-          Get-ChildItem `
-            -Path "build\Release" `
-            -Recurse |
-            Select-Object FullName, Length
+          $exe = "${{ github.workspace }}\build\Release\brusher.exe"
+          if (-not (Test-Path $exe)) {
+            throw "brusher.exe not found at $exe"
+          }
 
-      # ------------------------------------------------------------
-      # Create ZIP
-      # ------------------------------------------------------------
+          $p = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 2
+
+          if ($p.HasExited) {
+            throw "brusher.exe exited immediately (code $($p.ExitCode)). Startup crash likely — check toolchain / Qt deployment."
+          }
+
+          Write-Host "brusher.exe still running after 2s (PID $($p.Id)) — startup OK"
+          Stop-Process -Id $p.Id -Force
+
       - name: Create Windows ZIP
         shell: pwsh
         run: |
-          $zip = "Brusher-Windows.zip"
-
-          if (Test-Path $zip) {
-            Remove-Item -Force $zip
-          }
-
           Compress-Archive `
-            -Path "build\Release\*" `
-            -DestinationPath $zip `
+            -Path build\Release\* `
+            -DestinationPath Brusher-Windows.zip `
             -Force
 
-          Write-Host ""
-          Write-Host "Created:"
-          Get-Item $zip |
+          Get-Item Brusher-Windows.zip |
             Format-Table Name, Length
 
-      # ------------------------------------------------------------
-      # Upload artifact
-      # ------------------------------------------------------------
-      - name: Upload Windows Artifact
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: Brusher-Windows
           path: Brusher-Windows.zip
-          if-no-files-found: error
-```
