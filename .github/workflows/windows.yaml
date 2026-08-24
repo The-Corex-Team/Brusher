@@ -20,10 +20,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up MSVC + Qt
+      - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+
+      - name: Install Ninja
+        run: choco install -y ninja
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -43,7 +46,7 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: |
@@ -52,7 +55,7 @@ jobs:
       - name: Deploy Qt
         run: |
           "%QT_ROOT_DIR%\bin\windeployqt.exe" ^
-            "%GITHUB_WORKSPACE%\build\Release\brusher.exe" ^
+            "%GITHUB_WORKSPACE%\build\brusher.exe" ^
             --release ^
             --no-translations ^
             --no-system-d3d-compiler ^
@@ -64,7 +67,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $src = Join-Path $env:GITHUB_WORKSPACE 'build\Release'
+          $src = Join-Path $env:GITHUB_WORKSPACE 'build'
           $dst = Join-Path $env:GITHUB_WORKSPACE 'windows_release'
 
           if (-not (Test-Path $src)) {
@@ -73,7 +76,7 @@ jobs:
 
           New-Item -ItemType Directory -Path $dst -Force | Out-Null
 
-          Copy-Item -Path (Join-Path $src '*') -Destination $dst -Recurse -Force
+          Copy-Item -Path (Join-Path $src '*') -Destination $dst -Recurse -Force -Exclude 'CMakeFiles','*.cmake','CMakeCache.txt','build.ninja','rules.ninja'
 
           Write-Host "Contents of windows_release:"
           Get-ChildItem $dst -Recurse | Select-Object FullName, Length
