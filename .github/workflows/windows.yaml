@@ -60,8 +60,90 @@ jobs:
             --release ^
             --no-translations ^
             --no-system-d3d-compiler ^
-            --no-opengl-sw ^
             --compiler-runtime
+
+      - name: Verify Qt deployment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $root = Join-Path $env:GITHUB_WORKSPACE 'build'
+
+          # Core Qt runtime DLLs that must sit next to brusher.exe.
+          $requiredDlls = @(
+            'Qt6Core.dll',
+            'Qt6Gui.dll',
+            'Qt6Widgets.dll',
+            'Qt6OpenGL.dll',
+            'Qt6OpenGLWidgets.dll',
+            'Qt6Svg.dll'
+          )
+
+          foreach ($dll in $requiredDlls) {
+            $path = Join-Path $root $dll
+            if (-not (Test-Path $path)) {
+              Write-Host "::error::Missing required Qt DLL: $dll"
+              exit 1
+            }
+          }
+
+          # The Windows platform plugin and its DLLs.
+          $platformsDir = Join-Path $root 'platforms'
+          $requiredPlugins = @(
+            'qwindows.dll'
+          )
+
+          if (-not (Test-Path $platformsDir)) {
+            Write-Host '::error::Missing platforms\ directory'
+            exit 1
+          }
+
+          foreach ($plug in $requiredPlugins) {
+            $path = Join-Path $platformsDir $plug
+            if (-not (Test-Path $path)) {
+              Write-Host "::error::Missing platform plugin: $plug"
+              exit 1
+            }
+          }
+
+          # imageformats plugin (qtimageformats module).
+          $imageFormatsDir = Join-Path $root 'imageformats'
+          if (-not (Test-Path $imageFormatsDir)) {
+            Write-Host '::error::Missing imageformats\ directory'
+            exit 1
+          }
+
+          $requiredImageFormats = @(
+            'qjpeg.dll',
+            'qgif.dll',
+            'qsvg.dll'
+          )
+
+          foreach ($plug in $requiredImageFormats) {
+            $path = Join-Path $imageFormatsDir $plug
+            if (-not (Test-Path $path)) {
+              Write-Host "::error::Missing imageformat plugin: $plug"
+              exit 1
+            }
+          }
+
+          # styles plugin (Fusion style lives here on Windows).
+          $stylesDir = Join-Path $root 'styles'
+          if (Test-Path $stylesDir) {
+            Write-Host "styles\ found:"
+            Get-ChildItem $stylesDir | Select-Object Name
+          } else {
+            Write-Host "::warning::styles\ directory not deployed (Fusion style may fall back)"
+          }
+
+          # VC++ runtime from --compiler-runtime.
+          $vcruntime = Join-Path $root 'vcruntime140.dll'
+          if (-not (Test-Path $vcruntime)) {
+            Write-Host '::error::Missing vcruntime140.dll (--compiler-runtime did not deploy it)'
+            exit 1
+          }
+
+          Write-Host 'Qt deployment verification passed.'
 
       - name: Collect build output into windows_release
         shell: pwsh
