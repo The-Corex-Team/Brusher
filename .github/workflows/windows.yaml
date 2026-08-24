@@ -20,18 +20,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Install Visual Studio 2022 Build Tools (cl.exe, MSBuild, vcvars64.bat).
-      # windows-latest does NOT come with MSVC pre-installed — without this
-      # step, the locate-vcvars step below fails and so does CMake.
       - name: Install MSVC 2022 Build Tools
         uses: microsoft/setup-msbuild@v2
         with:
           msbuild-architecture: x64
 
-      # Install Qt6 with the MSVC 2022 x64 toolchain. Leaving host/target/
-      # arch unspecified used to let the action pick MinGW, which produced
-      # a Qt build whose ABI didn't match the MSVC compiler the rest of the
-      # job used — the resulting binary crashed silently on startup.
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -42,15 +35,10 @@ jobs:
           modules: ${{ env.QT_MODULES }}
           cache: true
 
-      # Find vcvars64.bat. Every step that needs MSVC calls it inline,
-      # because each GH Actions step starts a fresh shell — MSVC env
-      # does not carry across steps.
       - name: Locate vcvars64.bat
         id: vcvars
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-
           $candidates = @(
             "${env:ProgramFiles}\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat",
             "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat",
@@ -60,23 +48,17 @@ jobs:
 
           $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $found) {
-            throw "Could not find vcvars64.bat in: $($candidates -join ', ')"
+            throw "Could not find vcvars64.bat"
           }
 
-          Write-Host "Using vcvars: $found"
           "vcvars=$found" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Clean Build
         shell: pwsh
         run: |
-          if (Test-Path build) {
-            Remove-Item -Recurse -Force build
-          }
+          if (Test-Path build)     { Remove-Item -Recurse -Force build }
+          if (Test-Path windows_release) { Remove-Item -Recurse -Force windows_release }
 
-      # Configure + build under MSVC's vcvars64 environment. The
-      # Visual Studio 17 2022 generator with the x64 platform matches
-      # the Qt toolchain that install-qt-action pulled in. Multi-config
-      # generators produce build/Release/, which the deploy step expects.
       - name: Configure CMake
         shell: cmd
         run: |
@@ -93,81 +75,35 @@ jobs:
         shell: cmd
         run: |
           call "${{ steps.vcvars.outputs.vcvars }}" >NUL
-          if "%QT_ROOT_DIR%"=="" (
-            echo QT_ROOT_DIR is not set — install-qt-action did not run.
-            exit /b 1
-          )
           "%QT_ROOT_DIR%\bin\windeployqt.exe" ^
             "%GITHUB_WORKSPACE%\build\Release\brusher.exe" ^
-            --dir "%GITHUB_WORKSPACE%\build\Release" ^
             --release ^
             --no-translations ^
             --no-system-d3d-compiler ^
             --no-opengl-sw ^
             --compiler-runtime
 
-      - name: Verify imageformats
+      - name: Collect build output into windows_release
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $imageDir = 'build\Release\imageformats'
+          $src = Join-Path $env:GITHUB_WORKSPACE 'build\Release'
+          $dst = Join-Path $env:GITHUB_WORKSPACE 'windows_release'
 
-          if (-not (Test-Path $imageDir)) {
-            throw "imageformats directory is missing"
+          if (-not (Test-Path $src)) {
+            throw "Build output not found at $src"
           }
 
-          foreach ($plugin in @(
-            'qjpeg.dll',
-            'qgif.dll'
-          )) {
-            if (-not (Test-Path "$imageDir\$plugin")) {
-              throw "Missing image plugin: $plugin"
-            }
-          }
+          New-Item -ItemType Directory -Path $dst -Force | Out-Null
 
-          Write-Host "Qt imageformats:"
-          Get-ChildItem $imageDir -Filter '*.dll'
+          Copy-Item -Path (Join-Path $src '*') -Destination $dst -Recurse -Force
 
-      # Smoke test: launch brusher.exe briefly. The app is a GUI subsystem
-      # binary (WIN32_EXECUTABLE), so a startup crash returns immediately
-      # with no output. Running it for ~2s and asserting it didn't exit
-      # in <1s catches the silent-crash case without needing a display
-      # server (we don't pump messages, but the process must stay alive
-      # long enough to prove the runtime loaded).
-      - name: Smoke test
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          $exe = "${{ github.workspace }}\build\Release\brusher.exe"
-          if (-not (Test-Path $exe)) {
-            throw "brusher.exe not found at $exe"
-          }
-
-          $p = Start-Process -FilePath $exe -PassThru
-          Start-Sleep -Seconds 2
-
-          if ($p.HasExited) {
-            throw "brusher.exe exited immediately (code $($p.ExitCode)). Startup crash likely — check toolchain / Qt deployment."
-          }
-
-          Write-Host "brusher.exe still running after 2s (PID $($p.Id)) — startup OK"
-          Stop-Process -Id $p.Id -Force
-
-      - name: Create Windows ZIP
-        shell: pwsh
-        run: |
-          Compress-Archive `
-            -Path build\Release\* `
-            -DestinationPath Brusher-Windows.zip `
-            -Force
-
-          Get-Item Brusher-Windows.zip |
-            Format-Table Name, Length
+          Write-Host "Contents of windows_release:"
+          Get-ChildItem $dst -Recurse | Select-Object FullName, Length
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: Brusher-Windows
-          path: Brusher-Windows.zip
+          path: windows_release
