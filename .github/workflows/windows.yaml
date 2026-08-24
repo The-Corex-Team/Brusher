@@ -62,6 +62,68 @@ jobs:
             --no-system-d3d-compiler ^
             --compiler-runtime
 
+      # windeployqt's --compiler-runtime on the GitHub-hosted windows-latest
+      # image (with MSVC set up via ilammy/msvc-dev-cmd) often drops only
+      # vc_redist.x64.exe and leaves the actual msvcp140/vcruntime DLLs next
+      # to brusher.exe. Since the users running the artifact won't run the
+      # redist installer, copy the runtime DLLs from the MSVC redist folder
+      # explicitly so brusher.exe can launch out of the box.
+      - name: Copy MSVC runtime DLLs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $root = Join-Path $env:GITHUB_WORKSPACE 'build'
+
+          # The redist DLLs live under <VCINSTALLDIR>\Redist\MSVC\<ver>\x64\Microsoft.VC143.CRT\
+          # ilammy/msvc-dev-cmd exposes VCToolsInstallDir / VCINSTALLDIR via
+          # the dev cmd environment, which is inherited by pwsh here.
+          $vcRoot = $env:VCINSTALLDIR
+          if (-not $vcRoot) {
+            Write-Host '::error::VCINSTALLDIR is not set — MSVC dev cmd did not initialise.'
+            exit 1
+          }
+
+          $redist = Join-Path $vcRoot 'Redist\MSVC'
+          if (-not (Test-Path $redist)) {
+            Write-Host "::error::VC redist directory not found at $redist"
+            exit 1
+          }
+
+          # Pick the newest MSVC redist version present.
+          $versions = Get-ChildItem -Path $redist -Directory | Sort-Object Name -Descending
+          $crtDir = $null
+          foreach ($v in $versions) {
+            $candidate = Join-Path $v.FullName 'x64\Microsoft.VC143.CRT'
+            if (Test-Path $candidate) {
+              $crtDir = $candidate
+              break
+            }
+          }
+
+          if (-not $crtDir) {
+            Write-Host "::error::Could not locate x64\Microsoft.VC143.CRT under $redist"
+            exit 1
+          }
+
+          Write-Host "Copying MSVC runtime from $crtDir"
+
+          $requiredRuntime = @(
+            'vcruntime140.dll',
+            'vcruntime140_1.dll',
+            'msvcp140.dll',
+            'msvcp140_1.dll',
+            'msvcp140_2.dll',
+            'concrt140.dll'
+          )
+
+          foreach ($dll in $requiredRuntime) {
+            $src = Join-Path $crtDir $dll
+            if (Test-Path $src) {
+              Copy-Item -Path $src -Destination $root -Force
+            }
+          }
+
       - name: Verify Qt deployment
         shell: pwsh
         run: |
@@ -136,11 +198,19 @@ jobs:
             Write-Host "::warning::styles\ directory not deployed (Fusion style may fall back)"
           }
 
-          # VC++ runtime from --compiler-runtime.
-          $vcruntime = Join-Path $root 'vcruntime140.dll'
-          if (-not (Test-Path $vcruntime)) {
-            Write-Host '::error::Missing vcruntime140.dll (--compiler-runtime did not deploy it)'
-            exit 1
+          # VC++ runtime (now copied explicitly from the MSVC redist).
+          $requiredRuntime = @(
+            'vcruntime140.dll',
+            'vcruntime140_1.dll',
+            'msvcp140.dll'
+          )
+
+          foreach ($dll in $requiredRuntime) {
+            $path = Join-Path $root $dll
+            if (-not (Test-Path $path)) {
+              Write-Host "::error::Missing MSVC runtime DLL: $dll"
+              exit 1
+            }
           }
 
           Write-Host 'Qt deployment verification passed.'
