@@ -53,6 +53,7 @@ jobs:
           cmake --build build --config Release --parallel
 
       - name: Deploy Qt
+        shell: cmd
         run: |
           "%QT_ROOT_DIR%\bin\windeployqt.exe" ^
             "%GITHUB_WORKSPACE%\build\brusher.exe" ^
