@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     name: Build Windows
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     env:
       QT_VERSION: '6.8.3'
@@ -20,23 +20,24 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Windows 2022 provides Visual Studio 2022 / MSVC v143.
+      # This matches the Qt MSVC2022 package used below.
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          # Pin to Visual Studio 2022 (vsversion: 17). Without this, the
-          # GitHub-hosted windows-latest image may pick up whatever
-          # newest Visual Studio happens to be installed (recently that
-          # has been a pre-release VS 18), and the MSVC redist we copy
-          # in a later step then has a different major CRT version than
-          # the one brusher.exe was linked against. That mismatch
-          # surfaces at process startup as a 0xC0000409 / __fastfail
-          # crash, which Qt then mis-reports as "no Qt platform plugin".
           arch: x64
           vsversion: '17.0'
 
+      - name: Show MSVC version
+        shell: cmd
+        run: |
+          where cl
+          cl
+
       - name: Install Ninja
         shell: cmd
-        run: choco install -y ninja
+        run: |
+          choco install -y ninja
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -51,8 +52,13 @@ jobs:
       - name: Clean Build
         shell: pwsh
         run: |
-          if (Test-Path build)          { Remove-Item -Recurse -Force build }
-          if (Test-Path windows_release) { Remove-Item -Recurse -Force windows_release }
+          if (Test-Path build) {
+            Remove-Item -Recurse -Force build
+          }
+
+          if (Test-Path windows_release) {
+            Remove-Item -Recurse -Force windows_release
+          }
 
       - name: Configure CMake
         shell: cmd
@@ -70,85 +76,80 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
 
-          # With -G Ninja + -DCMAKE_BUILD_TYPE=Release, the binary lands
-          # directly in build/ (Ninja is single-config, so the build type
-          # only affects flags, not the output directory).
           $candidates = @(
             (Join-Path $env:GITHUB_WORKSPACE 'build\brusher.exe'),
             (Join-Path $env:GITHUB_WORKSPACE 'build\Release\brusher.exe')
           )
 
           $exe = $null
-          foreach ($c in $candidates) {
-            if (Test-Path $c) { $exe = (Resolve-Path $c).Path; break }
+
+          foreach ($candidate in $candidates) {
+            if (Test-Path $candidate) {
+              $exe = (Resolve-Path $candidate).Path
+              break
+            }
           }
+
           if (-not $exe) {
-            Write-Host '::error::brusher.exe not found under build/. Got:'
-            Get-ChildItem -Recurse -Filter 'brusher.exe' $env:GITHUB_WORKSPACE | Select-Object FullName
+            Write-Host '::error::brusher.exe was not found.'
+            Write-Host 'Searching entire repository:'
+
+            Get-ChildItem `
+              -Recurse `
+              -Filter 'brusher.exe' `
+              $env:GITHUB_WORKSPACE |
+              Select-Object FullName
+
             exit 1
           }
 
           $exeDir = Split-Path -Parent $exe
-          Write-Host "brusher.exe located at: $exe"
-          Write-Host "Deployment target dir: $exeDir"
-          "exe=$exe"           | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "exe_dir=$exeDir"    | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      # windeployqt needs to find both the Qt bin dir and the Qt plugins
-      # dir; on the jurplel install-qt-action image these are under
-      # $Qt6_DIR / $QT_ROOT_DIR. The action exports $Qt6_Dir but not the
-      # legacy $QT_ROOT_DIR, so we resolve the install path via the
-      # windeployqt that ships with the SDK and explicitly pass the
-      # --release flag so it deploys the matching Qt6Core/Qt6Gui/... DLLs
-      # (without it, on a host that has both Release and Debug Qt in
-      # PATH, it can pick the wrong arch and silently ship an
-      # un-loadable qwindows.dll — which is exactly the "Available
-      # platform plugins are: windows" failure users were hitting).
+          Write-Host "brusher.exe: $exe"
+          Write-Host "Output directory: $exeDir"
+
+          "exe=$exe" | Out-File `
+            -FilePath $env:GITHUB_OUTPUT `
+            -Append `
+            -Encoding utf8
+
+          "exe_dir=$exeDir" | Out-File `
+            -FilePath $env:GITHUB_OUTPUT `
+            -Append `
+            -Encoding utf8
+
       - name: Deploy Qt
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $exe     = "${{ steps.locate.outputs.exe }}"
-          $exeDir  = "${{ steps.locate.outputs.exe_dir }}"
+          $exe = "${{ steps.locate.outputs.exe }}"
+          $exeDir = "${{ steps.locate.outputs.exe_dir }}"
 
-          # jurplel/install-qt-action exports Qt6_Dir (the Qt install
-          # root, e.g. C:\Qt\6.8.3\msvc2022_64). The legacy $env:QT_ROOT_DIR
-          # is also set on recent versions, but Qt6_Dir is the documented
-          # one. Prefer Qt6_Dir, fall back to QT_ROOT_DIR.
           $qtRoot = $env:Qt6_Dir
-          if (-not $qtRoot) { $qtRoot = $env:QT_ROOT_DIR }
+
           if (-not $qtRoot) {
-            Write-Host '::error::Neither Qt6_Dir nor QT_ROOT_DIR is set. Cannot locate windeployqt.'
+            $qtRoot = $env:QT_ROOT_DIR
+          }
+
+          if (-not $qtRoot) {
+            Write-Host '::error::Qt installation directory was not found.'
             exit 1
           }
 
-          $windeployqt = Join-Path $qtRoot 'bin\windeployqt.exe'
+          $windeployqt = Join-Path `
+            $qtRoot `
+            'bin\windeployqt.exe'
+
           if (-not (Test-Path $windeployqt)) {
-            Write-Host "::error::windeployqt.exe not found at $windeployqt"
+            Write-Host "::error::windeployqt.exe not found: $windeployqt"
             exit 1
           }
 
-          Write-Host "Using windeployqt: $windeployqt"
-          Write-Host "Deploying:         $exe"
-          Write-Host "Into:              $exeDir"
+          Write-Host "Qt root: $qtRoot"
+          Write-Host "windeployqt: $windeployqt"
+          Write-Host "Application: $exe"
 
-          # NB: we deliberately do NOT pass --compiler-runtime. That flag
-          # only stages vc_redist.x64.exe; the actual runtime DLLs
-          # (vcruntime140.dll, msvcp140.dll, ...) still need to live next
-          # to brusher.exe, which we copy explicitly in the next step.
-          #
-          # NB: we deliberately do NOT pass --no-system-d3d-compiler.
-          # That flag tells windeployqt to skip deploying
-          # d3dcompiler_47.dll on the assumption the user's system has
-          # it. That assumption is only true on developer machines with
-          # the DirectX SDK / Visual Studio installed. A regular user
-          # downloading Brusher-Windows.zip does NOT have it, and
-          # Qt6Gui.dll / qwindows.dll import d3dcompiler_47.dll
-          # indirectly through the D3D11 backend. Missing it makes the
-          # loader call __fastfail(FAST_FAIL_FATAL_APP_EXIT), the
-          # process exits with 0xC0000409, and Qt reports it as the
-          # misleading "no Qt platform plugin" dialog.
           & $windeployqt `
             --release `
             --no-translations `
@@ -160,11 +161,8 @@ jobs:
             exit $LASTEXITCODE
           }
 
-      # windeployqt's --compiler-runtime (and even the implicit deploy on
-      # this image) leaves the MSVC runtime DLLs behind. Users running
-      # the artifact rarely run vc_redist.x64.exe, so copy the runtime
-      # DLLs next to brusher.exe explicitly. VCINSTALLDIR is exported by
-      # the ilammy/msvc-dev-cmd step and inherited here.
+      # Copy the MSVC runtime next to the application.
+      # Qt 6.8.3 MSVC2022 uses the VS2022 / VC143 runtime.
       - name: Copy MSVC runtime DLLs
         shell: pwsh
         run: |
@@ -173,21 +171,31 @@ jobs:
           $exeDir = "${{ steps.locate.outputs.exe_dir }}"
 
           $vcRoot = $env:VCINSTALLDIR
+
           if (-not $vcRoot) {
-            Write-Host '::error::VCINSTALLDIR is not set — MSVC dev cmd did not initialise.'
+            Write-Host '::error::VCINSTALLDIR is not set.'
             exit 1
           }
 
           $redist = Join-Path $vcRoot 'Redist\MSVC'
+
           if (-not (Test-Path $redist)) {
-            Write-Host "::error::VC redist directory not found at $redist"
+            Write-Host "::error::MSVC redist directory not found: $redist"
             exit 1
           }
 
           $crtDir = $null
-          $versions = Get-ChildItem -Path $redist -Directory | Sort-Object Name -Descending
-          foreach ($v in $versions) {
-            $candidate = Join-Path $v.FullName 'x64\Microsoft.VC143.CRT'
+
+          $versions = Get-ChildItem `
+            -Path $redist `
+            -Directory |
+            Sort-Object Name -Descending
+
+          foreach ($version in $versions) {
+            $candidate = Join-Path `
+              $version.FullName `
+              'x64\Microsoft.VC143.CRT'
+
             if (Test-Path $candidate) {
               $crtDir = $candidate
               break
@@ -195,11 +203,12 @@ jobs:
           }
 
           if (-not $crtDir) {
-            Write-Host "::error::Could not locate x64\Microsoft.VC143.CRT under $redist"
+            Write-Host "::error::VC143 runtime directory was not found."
+            Write-Host "Searched under: $redist"
             exit 1
           }
 
-          Write-Host "Copying MSVC runtime from $crtDir to $exeDir"
+          Write-Host "Using MSVC runtime: $crtDir"
 
           $requiredRuntime = @(
             'vcruntime140.dll',
@@ -212,8 +221,17 @@ jobs:
 
           foreach ($dll in $requiredRuntime) {
             $src = Join-Path $crtDir $dll
+
             if (Test-Path $src) {
-              Copy-Item -Path $src -Destination $exeDir -Force
+              Copy-Item `
+                -Path $src `
+                -Destination $exeDir `
+                -Force
+
+              Write-Host "Copied $dll"
+            }
+            else {
+              Write-Host "::warning::Runtime DLL not found: $dll"
             }
           }
 
@@ -226,8 +244,8 @@ jobs:
 
           Write-Host "Verifying deployment in: $exeDir"
 
-          # Core Qt runtime DLLs that must sit next to brusher.exe.
-          $requiredDlls = @(
+          # Main Qt libraries.
+          $requiredQtDlls = @(
             'Qt6Core.dll',
             'Qt6Gui.dll',
             'Qt6Widgets.dll',
@@ -236,37 +254,39 @@ jobs:
             'Qt6Svg.dll'
           )
 
-          foreach ($dll in $requiredDlls) {
+          foreach ($dll in $requiredQtDlls) {
             $path = Join-Path $exeDir $dll
+
             if (-not (Test-Path $path)) {
-              Write-Host "::error::Missing required Qt DLL: $dll"
+              Write-Host "::error::Missing Qt DLL: $dll"
               exit 1
             }
           }
 
-          # The Windows platform plugin and its DLLs.
+          # Windows platform plugin.
           $platformsDir = Join-Path $exeDir 'platforms'
-          $requiredPlugins = @(
-            'qwindows.dll'
-          )
 
           if (-not (Test-Path $platformsDir)) {
-            Write-Host '::error::Missing platforms\ directory'
+            Write-Host '::error::Missing platforms directory.'
             exit 1
           }
 
-          foreach ($plug in $requiredPlugins) {
-            $path = Join-Path $platformsDir $plug
-            if (-not (Test-Path $path)) {
-              Write-Host "::error::Missing platform plugin: $plug"
-              exit 1
-            }
+          $qwindows = Join-Path `
+            $platformsDir `
+            'qwindows.dll'
+
+          if (-not (Test-Path $qwindows)) {
+            Write-Host '::error::Missing platforms\qwindows.dll'
+            exit 1
           }
 
-          # imageformats plugin (qtimageformats module).
-          $imageFormatsDir = Join-Path $exeDir 'imageformats'
+          # Image format plugins.
+          $imageFormatsDir = Join-Path `
+            $exeDir `
+            'imageformats'
+
           if (-not (Test-Path $imageFormatsDir)) {
-            Write-Host '::error::Missing imageformats\ directory'
+            Write-Host '::error::Missing imageformats directory.'
             exit 1
           }
 
@@ -276,24 +296,18 @@ jobs:
             'qsvg.dll'
           )
 
-          foreach ($plug in $requiredImageFormats) {
-            $path = Join-Path $imageFormatsDir $plug
+          foreach ($plugin in $requiredImageFormats) {
+            $path = Join-Path `
+              $imageFormatsDir `
+              $plugin
+
             if (-not (Test-Path $path)) {
-              Write-Host "::error::Missing imageformat plugin: $plug"
+              Write-Host "::error::Missing image format plugin: $plugin"
               exit 1
             }
           }
 
-          # styles plugin (Fusion style lives here on Windows).
-          $stylesDir = Join-Path $exeDir 'styles'
-          if (Test-Path $stylesDir) {
-            Write-Host "styles\ found:"
-            Get-ChildItem $stylesDir | Select-Object Name
-          } else {
-            Write-Host "::warning::styles\ directory not deployed (Fusion style may fall back)"
-          }
-
-          # VC++ runtime (now copied explicitly from the MSVC redist).
+          # MSVC runtime.
           $requiredRuntime = @(
             'vcruntime140.dll',
             'vcruntime140_1.dll',
@@ -302,56 +316,67 @@ jobs:
 
           foreach ($dll in $requiredRuntime) {
             $path = Join-Path $exeDir $dll
+
             if (-not (Test-Path $path)) {
               Write-Host "::error::Missing MSVC runtime DLL: $dll"
               exit 1
             }
           }
 
-          # Direct3D shader compiler — required by Qt6Gui / qwindows.dll
-          # through the D3D11 backend. windeployqt ships it when
-          # --no-system-d3d-compiler is NOT passed. We deliberately omit
-          # that flag above so this file ends up in the artifact;
-          # verifying it here means a future change that re-adds the
-          # flag will fail CI instead of breaking end-user launches.
-          $d3dCompiler = 'd3dcompiler_47.dll'
-          $d3dPath = Join-Path $exeDir $d3dCompiler
-          if (-not (Test-Path $d3dPath)) {
-            Write-Host "::error::Missing $d3dCompiler — qwindows.dll will fail to load on user systems."
+          # Direct3D shader compiler.
+          $d3dCompiler = Join-Path `
+            $exeDir `
+            'd3dcompiler_47.dll'
+
+          if (-not (Test-Path $d3dCompiler)) {
+            Write-Host '::error::Missing d3dcompiler_47.dll'
             exit 1
           }
 
+          Write-Host ''
           Write-Host 'Qt deployment verification passed.'
+          Write-Host ''
 
-      - name: Collect build output into windows_release
+      - name: Collect build output
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
-          # The deployment target directory is wherever brusher.exe lives
-          # (build/ with the Ninja single-config generator, or build/Release/
-          # with a multi-config generator).
           $exeDir = "${{ steps.locate.outputs.exe_dir }}"
+          $destination = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            'windows_release'
 
-          # If windeployqt dropped files into build/ (single-config) and
-          # the build also produced a build/Release/ tree (multi-config
-          # leftover), include both so we don't lose anything. Otherwise
-          # we'd duplicate the deploy, but Copy-Item with -Exclude keeps
-          # the manifest out of the final archive.
-          $src = $exeDir
-          $dst = Join-Path $env:GITHUB_WORKSPACE 'windows_release'
-
-          if (-not (Test-Path $src)) {
-            throw "Build output not found at $src"
+          if (-not (Test-Path $exeDir)) {
+            throw "Build output directory not found: $exeDir"
           }
 
-          New-Item -ItemType Directory -Path $dst -Force | Out-Null
+          New-Item `
+            -ItemType Directory `
+            -Path $destination `
+            -Force |
+            Out-Null
 
-          Copy-Item -Path (Join-Path $src '*') -Destination $dst -Recurse -Force `
-            -Exclude 'CMakeFiles','*.cmake','CMakeCache.txt','build.ninja','rules.ninja'
+          Copy-Item `
+            -Path (Join-Path $exeDir '*') `
+            -Destination $destination `
+            -Recurse `
+            -Force `
+            -Exclude `
+              'CMakeFiles',
+              '*.cmake',
+              'CMakeCache.txt',
+              'build.ninja',
+              'rules.ninja'
 
-          Write-Host "Contents of windows_release:"
-          Get-ChildItem $dst -Recurse | Select-Object FullName, Length
+          Write-Host ''
+          Write-Host 'Windows release contents:'
+          Write-Host ''
+
+          Get-ChildItem `
+            $destination `
+            -Recurse |
+            Select-Object FullName, Length
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -360,14 +385,9 @@ jobs:
           path: windows_release
 
   diagnose:
-    name: Smoke-test artifact (catch missing-DLL crashes)
-    # Runs after the build job. Downloads the artifact, enables WER
-    # local dumps, launches brusher.exe on the runner, and uploads the
-    # minidump if it crashes. This is what catches the next "works on
-    # my machine, breaks on users" deployment regression — without it
-    # we'd be back to debugging blindly from end-user error dialogs.
+    name: Smoke-test Windows artifact
     needs: build
-    runs-on: windows-latest
+    runs-on: windows-2022
     if: always() && needs.build.result == 'success'
 
     steps:
@@ -380,41 +400,59 @@ jobs:
       - name: Enable WER local dumps
         shell: cmd
         run: |
-          REM Configure WER to write a full minidump on any crash.
-          REM DumpFolder must exist and be writable.
-          if not exist "%LOCALAPPDATA%\CrashDumps" mkdir "%LOCALAPPDATA%\CrashDumps"
+          if not exist "%LOCALAPPDATA%\CrashDumps" (
+            mkdir "%LOCALAPPDATA%\CrashDumps"
+          )
+
           reg add "HKCU\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\brusher.exe" /f /v DumpType /t REG_DWORD /d 2
+
           reg add "HKCU\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\brusher.exe" /f /v DumpFolder /t REG_EXPAND_SZ /d "%%LOCALAPPDATA%%\CrashDumps"
+
           reg add "HKCU\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\brusher.exe" /f /v DumpCount /t REG_DWORD /d 3
 
       - name: Run brusher.exe
         shell: cmd
         run: |
           cd windows_release
-          REM Launch and wait up to 5 seconds. If brusher.exe starts a
-          # GUI, this returns immediately (the GUI lives in a separate
-          # message loop) so we then forcibly terminate it.
+
           start "" /b brusher.exe
+
           timeout /t 5 /nobreak >nul
+
           taskkill /im brusher.exe /f >nul 2>&1
-          echo brusher.exe run completed (or was killed after 5s).
-          echo Exit code propagation: if the start above returned non-zero, WER will have written a dump to %LOCALAPPDATA%\CrashDumps.
+
+          echo Brusher smoke test completed.
 
       - name: Upload crash dump if any
         if: always()
         shell: pwsh
         run: |
-          $dumpDir = Join-Path $env:LOCALAPPDATA 'CrashDumps'
-          if (Test-Path $dumpDir) {
-            $dumps = Get-ChildItem $dumpDir -Filter '*.dmp' -ErrorAction SilentlyContinue
-            if ($dumps) {
-              foreach ($d in $dumps) {
-                Write-Host "Found dump: $($d.FullName) ($($d.Length) bytes)"
-                Copy-Item $d.FullName $env:GITHUB_WORKSPACE -Force
-              }
-            } else {
-              Write-Host "No crash dumps in $dumpDir (brusher.exe likely started successfully)."
+          $dumpDir = Join-Path `
+            $env:LOCALAPPDATA `
+            'CrashDumps'
+
+          if (-not (Test-Path $dumpDir)) {
+            Write-Host 'No CrashDumps directory found.'
+            exit 0
+          }
+
+          $dumps = Get-ChildItem `
+            $dumpDir `
+            -Filter '*.dmp' `
+            -ErrorAction SilentlyContinue
+
+          if ($dumps) {
+            foreach ($dump in $dumps) {
+              Write-Host "Found crash dump: $($dump.FullName)"
+
+              Copy-Item `
+                $dump.FullName `
+                $env:GITHUB_WORKSPACE `
+                -Force
             }
+          }
+          else {
+            Write-Host 'No crash dumps found.'
           }
 
       - name: Upload dump artifact
