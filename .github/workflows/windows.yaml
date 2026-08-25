@@ -23,7 +23,16 @@ jobs:
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
+          # Pin to Visual Studio 2022 (vsversion: 17). Without this, the
+          # GitHub-hosted windows-latest image may pick up whatever
+          # newest Visual Studio happens to be installed (recently that
+          # has been a pre-release VS 18), and the MSVC redist we copy
+          # in a later step then has a different major CRT version than
+          # the one brusher.exe was linked against. That mismatch
+          # surfaces at process startup as a 0xC0000409 / __fastfail
+          # crash, which Qt then mis-reports as "no Qt platform plugin".
           arch: x64
+          vsversion: '17.0'
 
       - name: Install Ninja
         shell: cmd
@@ -349,3 +358,69 @@ jobs:
         with:
           name: Brusher-Windows
           path: windows_release
+
+  diagnose:
+    name: Smoke-test artifact (catch missing-DLL crashes)
+    # Runs after the build job. Downloads the artifact, enables WER
+    # local dumps, launches brusher.exe on the runner, and uploads the
+    # minidump if it crashes. This is what catches the next "works on
+    # my machine, breaks on users" deployment regression — without it
+    # we'd be back to debugging blindly from end-user error dialogs.
+    needs: build
+    runs-on: windows-latest
+    if: always() && needs.build.result == 'success'
+
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Brusher-Windows
+          path: windows_release
+
+      - name: Enable WER local dumps
+        shell: cmd
+        run: |
+          REM Configure WER to write a full minidump on any crash.
+          REM DumpFolder must exist and be writable.
+          if not exist "%LOCALAPPDATA%\CrashDumps" mkdir "%LOCALAPPDATA%\CrashDumps"
+          reg add "HKCU\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\brusher.exe" /f /v DumpType /t REG_DWORD /d 2
+          reg add "HKCU\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\brusher.exe" /f /v DumpFolder /t REG_EXPAND_SZ /d "%%LOCALAPPDATA%%\CrashDumps"
+          reg add "HKCU\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\brusher.exe" /f /v DumpCount /t REG_DWORD /d 3
+
+      - name: Run brusher.exe
+        shell: cmd
+        run: |
+          cd windows_release
+          REM Launch and wait up to 5 seconds. If brusher.exe starts a
+          # GUI, this returns immediately (the GUI lives in a separate
+          # message loop) so we then forcibly terminate it.
+          start "" /b brusher.exe
+          timeout /t 5 /nobreak >nul
+          taskkill /im brusher.exe /f >nul 2>&1
+          echo brusher.exe run completed (or was killed after 5s).
+          echo Exit code propagation: if the start above returned non-zero, WER will have written a dump to %LOCALAPPDATA%\CrashDumps.
+
+      - name: Upload crash dump if any
+        if: always()
+        shell: pwsh
+        run: |
+          $dumpDir = Join-Path $env:LOCALAPPDATA 'CrashDumps'
+          if (Test-Path $dumpDir) {
+            $dumps = Get-ChildItem $dumpDir -Filter '*.dmp' -ErrorAction SilentlyContinue
+            if ($dumps) {
+              foreach ($d in $dumps) {
+                Write-Host "Found dump: $($d.FullName) ($($d.Length) bytes)"
+                Copy-Item $d.FullName $env:GITHUB_WORKSPACE -Force
+              }
+            } else {
+              Write-Host "No crash dumps in $dumpDir (brusher.exe likely started successfully)."
+            }
+          }
+
+      - name: Upload dump artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brusher-Windows-crash-dump
+          path: '*.dmp'
+          if-no-files-found: ignore
