@@ -128,10 +128,21 @@ jobs:
           # only stages vc_redist.x64.exe; the actual runtime DLLs
           # (vcruntime140.dll, msvcp140.dll, ...) still need to live next
           # to brusher.exe, which we copy explicitly in the next step.
+          #
+          # NB: we deliberately do NOT pass --no-system-d3d-compiler.
+          # That flag tells windeployqt to skip deploying
+          # d3dcompiler_47.dll on the assumption the user's system has
+          # it. That assumption is only true on developer machines with
+          # the DirectX SDK / Visual Studio installed. A regular user
+          # downloading Brusher-Windows.zip does NOT have it, and
+          # Qt6Gui.dll / qwindows.dll import d3dcompiler_47.dll
+          # indirectly through the D3D11 backend. Missing it makes the
+          # loader call __fastfail(FAST_FAIL_FATAL_APP_EXIT), the
+          # process exits with 0xC0000409, and Qt reports it as the
+          # misleading "no Qt platform plugin" dialog.
           & $windeployqt `
             --release `
             --no-translations `
-            --no-system-d3d-compiler `
             --no-opengl-sw `
             "$exe"
 
@@ -286,6 +297,19 @@ jobs:
               Write-Host "::error::Missing MSVC runtime DLL: $dll"
               exit 1
             }
+          }
+
+          # Direct3D shader compiler — required by Qt6Gui / qwindows.dll
+          # through the D3D11 backend. windeployqt ships it when
+          # --no-system-d3d-compiler is NOT passed. We deliberately omit
+          # that flag above so this file ends up in the artifact;
+          # verifying it here means a future change that re-adds the
+          # flag will fail CI instead of breaking end-user launches.
+          $d3dCompiler = 'd3dcompiler_47.dll'
+          $d3dPath = Join-Path $exeDir $d3dCompiler
+          if (-not (Test-Path $d3dPath)) {
+            Write-Host "::error::Missing $d3dCompiler — qwindows.dll will fail to load on user systems."
+            exit 1
           }
 
           Write-Host 'Qt deployment verification passed.'
