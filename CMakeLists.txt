@@ -86,11 +86,6 @@ add_executable(brusher MACOSX_BUNDLE WIN32 ${SOURCES})
 
 target_include_directories(brusher PRIVATE src)
 
-# Note: Qt6::OpenGL is listed before Qt6::OpenGLWidgets so the link
-# order picks up the modern OpenGL.framework. Without it, on
-# macOS 14+ (where AGL.framework is gone) the link of OpenGLWidgets
-# fails with "ld: framework 'AGL' not found". Linking Qt6::OpenGL
-# first pulls in the correct modern OpenGL framework.
 target_link_libraries(brusher PRIVATE
     Qt6::OpenGL
     Qt6::Widgets
@@ -98,10 +93,6 @@ target_link_libraries(brusher PRIVATE
     Qt6::Svg
 )
 
-# macOS bundle metadata — drives `macdeployqt` and is what shows up in
-# Finder / `mdls` output. `MACOSX_BUNDLE` on add_executable already
-# triggers CMake to build a `.app`; the properties below fill in the
-# Info.plist.
 set_target_properties(brusher PROPERTIES
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_BUNDLE_NAME "Brusher"
@@ -112,44 +103,35 @@ set_target_properties(brusher PROPERTIES
     MACOSX_BUNDLE_INFO_STRING "Brusher ${PROJECT_VERSION}"
 )
 
+# Standard target installation
 install(TARGETS brusher
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     BUNDLE DESTINATION .
 )
 
-# On Windows, windeployqt (run in CI right after the build) stages the Qt
-# runtime DLLs, the MSVC runtime, and the plugin folders (platforms/,
-# imageformats/, styles/, ...) next to build/Release/brusher.exe. CPack only
-# packages files covered by install() rules, so install(TARGETS) alone yields
-# an NSIS installer that contains brusher.exe and nothing else. Install the
-# whole deployed Release directory into bin so the installer is self-contained.
-# (CI always builds the multi-config Release layout under build/Release.)
-if(WIN32)
-    install(DIRECTORY "${CMAKE_BINARY_DIR}/Release/"
-        DESTINATION ${CMAKE_INSTALL_BINDIR}
-        USE_SOURCE_PERMISSIONS
+# Automate Qt runtime deployment (windeployqt / macdeployqt) for install and CPack
+if(QT_VERSION_GREATER_EQUAL "6.3")
+    qt_generate_deploy_app_script(
+        TARGET brusher
+        OUTPUT_SCRIPT deploy_script
+        NO_UNSUPPORTED_PLATFORM_ERROR
     )
+    install(SCRIPT ${deploy_script})
 endif()
 
+# Linux desktop integration
 install(FILES packaging/brusher.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
     RENAME brusher.desktop
 )
 
-# The repo's icon lives at packaging/icons/Brusher.svg; install the SVG
-# into the scalable apps directory so deb / AppImage / Windows shortcut
-# all pick it up. (Earlier revisions referenced a non-existent
-# assets/brusher.png — replaced.)
 install(FILES packaging/icons/Brusher.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
     RENAME brusher.svg
 )
 
 # ---------------------------------------------------------------------------
-# CPack — produces a .deb on Linux and an NSIS installer on Windows.
-# The generator is chosen at run time via `cpack -G <gen>`, so we leave
-# CPACK_GENERATOR unset here; include(CPack) at the bottom of the file
-# is what tells CMake to read these variables.
+# CPack Configuration
 # ---------------------------------------------------------------------------
 set(CPACK_PACKAGE_NAME "Brusher")
 set(CPACK_PACKAGE_VENDOR "Brusher")
@@ -162,18 +144,13 @@ set(CPACK_PACKAGE_CONTACT "Brusher")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Brusher")
 set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
-# SHLIBDEPS auto-resolves the Qt6 .so dependencies at cpack-time, so we
-# don't need to enumerate them by hand.
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "")
 set(CPACK_DEBIAN_POSTINST_SCRIPT "${CMAKE_SOURCE_DIR}/packaging/postinst")
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 
 # Windows NSIS installer
 set(CPACK_NSIS_DISPLAY_NAME "Brusher")
 set(CPACK_NSIS_PACKAGE_NAME "Brusher")
-# CPack's NSIS template auto-detects brusher.svg from the install tree
-# at CPack time, so we don't need CPACK_NSIS_INSTALLED_ICON_FILE.
 set(CPACK_NSIS_CREATE_ICONS_EXTRA
     "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Brusher.lnk' '$INSTDIR\\\\bin\\\\brusher.exe'")
 set(CPACK_NSIS_DELETE_ICONS_EXTRA

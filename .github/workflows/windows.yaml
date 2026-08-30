@@ -46,59 +46,28 @@ jobs:
         run: |
           cmake --build build --config Release --parallel
 
-      - name: Stage Executable and Deploy Qt
-        shell: pwsh
+      - name: Install & Deploy Qt Runtime
+        shell: cmd
         run: |
-          $ErrorActionPreference = 'Stop'
+          cmake --install build
 
-          # Locate brusher.exe
-          $exe = Get-ChildItem -Path build -Filter 'brusher.exe' -Recurse | Select-Object -First 1 -ExpandProperty FullName
-          if (-not $exe) {
-            throw "brusher.exe was not found in the build directory."
-          }
-
-          # Create distribution directory
-          $distDir = Join-Path $env:GITHUB_WORKSPACE 'Brusher-Windows-x64'
-          if (Test-Path $distDir) { Remove-Item -Recurse -Force $distDir }
-          New-Item -ItemType Directory -Path $distDir | Out-Null
-
-          # Copy main executable
-          Copy-Item -Path $exe -Destination $distDir -Force
-          $stagedExe = Join-Path $distDir 'brusher.exe'
-
-          # Locate windeployqt
-          $qtRoot = $env:Qt6_Dir
-          if (-not $qtRoot) { $qtRoot = $env:QT_ROOT_DIR }
-          $windeployqt = Join-Path $qtRoot 'bin\windeployqt.exe'
-
-          if (-not (Test-Path $windeployqt)) {
-            throw "windeployqt.exe not found at $windeployqt"
-          }
-
-          # Run windeployqt with --compiler-runtime to bundle full MSVC CRT automatically
-          & $windeployqt `
-            --release `
-            --compiler-runtime `
-            --no-translations `
-            --verbose 1 `
-            "$stagedExe"
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "windeployqt failed with exit code $LASTEXITCODE"
-          }
-
-      - name: Compress Release Package
-        shell: pwsh
+      - name: Package with CPack (ZIP Artifact)
+        shell: cmd
         run: |
-          $distDir = Join-Path $env:GITHUB_WORKSPACE 'Brusher-Windows-x64'
-          $zipPath = Join-Path $env:GITHUB_WORKSPACE 'Brusher-Windows-x64.zip'
-          Compress-Archive -Path "$distDir\*" -DestinationPath $zipPath -Force
+          cd build && cpack -G ZIP
 
-      - name: Upload Windows Release Artifact
+      - name: Upload Windows Standalone Package
         uses: actions/upload-artifact@v4
         with:
           name: Brusher-Windows-x64
-          path: Brusher-Windows-x64.zip
+          path: dist/
+
+      - name: Upload Windows CPack Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brusher-Windows-x64-Zip
+          path: build/Brusher-*-win64.zip
+          if-no-files-found: ignore
 
   smoke-test:
     name: Smoke-Test Package
@@ -122,11 +91,11 @@ jobs:
       - name: Execute Brusher Diagnostic Run
         shell: cmd
         run: |
-          cd test_dist
+          cd test_dist\bin
           set QT_LOGGING_TO_CONSOLE=1
           set QT_DEBUG_PLUGINS=1
           start "" /b brusher.exe
-          timeout /t 4 /nobreak >nul
+          timeout /t 5 /nobreak >nul
           taskkill /im brusher.exe /f >nul 2>&1
 
       - name: Check for Crash Dumps
@@ -141,6 +110,7 @@ jobs:
               foreach ($d in $dumps) {
                 Copy-Item $d.FullName $env:GITHUB_WORKSPACE -Force
               }
+              exit 1
             }
           }
 
