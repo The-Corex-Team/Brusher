@@ -4,6 +4,7 @@ project(Brusher VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -11,7 +12,13 @@ set(CMAKE_AUTORCC ON)
 
 include(GNUInstallDirs)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets Svg)
+find_package(Qt6 REQUIRED COMPONENTS
+    Core
+    Widgets
+    OpenGL
+    OpenGLWidgets
+    Svg
+)
 
 set(SOURCES
     src/main.cpp
@@ -82,57 +89,62 @@ set(SOURCES
     resources.qrc
 )
 
-add_executable(brusher MACOSX_BUNDLE WIN32 ${SOURCES})
+add_executable(brusher WIN32 ${SOURCES})
 
-target_include_directories(brusher PRIVATE src)
+target_include_directories(brusher PRIVATE
+    src
+)
 
 target_link_libraries(brusher PRIVATE
-    Qt6::OpenGL
+    Qt6::Core
     Qt6::Widgets
+    Qt6::OpenGL
     Qt6::OpenGLWidgets
     Qt6::Svg
 )
 
-set_target_properties(brusher PROPERTIES
-    MACOSX_BUNDLE TRUE
-    MACOSX_BUNDLE_BUNDLE_NAME "Brusher"
-    MACOSX_BUNDLE_GUI_IDENTIFIER "com.brusher.app"
-    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_COPYRIGHT "© Brusher"
-    MACOSX_BUNDLE_INFO_STRING "Brusher ${PROJECT_VERSION}"
-)
+# ------------------------------------------------------------
+# Installation
+# ------------------------------------------------------------
 
-# Standard target installation
 install(TARGETS brusher
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    BUNDLE DESTINATION .
 )
 
-# Automate Qt runtime deployment (windeployqt / macdeployqt) for install and CPack
-if(QT_VERSION VERSION_GREATER_EQUAL "6.3")
-    qt_generate_deploy_app_script(
-        TARGET brusher
-        OUTPUT_SCRIPT deploy_script
-        NO_UNSUPPORTED_PLATFORM_ERROR
+# ------------------------------------------------------------
+# Qt Runtime Deployment
+# ------------------------------------------------------------
+
+qt_generate_deploy_app_script(
+    TARGET brusher
+    OUTPUT_SCRIPT deploy_script
+    NO_UNSUPPORTED_PLATFORM_ERROR
+)
+
+install(SCRIPT ${deploy_script})
+
+# ------------------------------------------------------------
+# Linux desktop integration
+# ------------------------------------------------------------
+
+if(LINUX)
+    install(FILES
+        packaging/brusher.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+        RENAME brusher.desktop
     )
-    install(SCRIPT ${deploy_script})
+
+    install(FILES
+        packaging/icons/Brusher.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+        RENAME brusher.svg
+    )
 endif()
 
-# Linux desktop integration
-install(FILES packaging/brusher.desktop
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
-    RENAME brusher.desktop
-)
+# ------------------------------------------------------------
+# CPack
+# ------------------------------------------------------------
 
-install(FILES packaging/icons/Brusher.svg
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
-    RENAME brusher.svg
-)
-
-# ---------------------------------------------------------------------------
-# CPack Configuration
-# ---------------------------------------------------------------------------
 set(CPACK_PACKAGE_NAME "Brusher")
 set(CPACK_PACKAGE_VENDOR "Brusher")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Modern Painting Application")
@@ -140,21 +152,36 @@ set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/walter-322/Brusher")
 set(CPACK_PACKAGE_CONTACT "Brusher")
 
-# Debian / Ubuntu (.deb)
+# ------------------------------------------------------------
+# Debian
+# ------------------------------------------------------------
+
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Brusher")
 set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_DEBIAN_POSTINST_SCRIPT "${CMAKE_SOURCE_DIR}/packaging/postinst")
+set(CPACK_DEBIAN_POSTINST_SCRIPT
+    "${CMAKE_SOURCE_DIR}/packaging/postinst"
+)
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 
-# Windows NSIS installer
+# ------------------------------------------------------------
+# Windows NSIS
+# ------------------------------------------------------------
+
 set(CPACK_NSIS_DISPLAY_NAME "Brusher")
 set(CPACK_NSIS_PACKAGE_NAME "Brusher")
+
 set(CPACK_NSIS_CREATE_ICONS_EXTRA
-    "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Brusher.lnk' '$INSTDIR\\\\bin\\\\brusher.exe'")
+    "CreateShortCut '$SMPROGRAMS\\\\$START_MENU_FOLDER\\\\Brusher.lnk' '$INSTDIR\\\\bin\\\\brusher.exe'"
+)
+
 set(CPACK_NSIS_DELETE_ICONS_EXTRA
-    "Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Brusher.lnk'")
-set(CPACK_NSIS_URL_INFO_ABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
+    "Delete '$SMPROGRAMS\\\\$START_MENU_FOLDER\\\\Brusher.lnk'"
+)
+
+set(CPACK_NSIS_URL_INFO_ABOUT
+    "${CPACK_PACKAGE_HOMEPAGE_URL}"
+)
 
 include(CPack)
