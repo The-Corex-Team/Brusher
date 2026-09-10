@@ -110,7 +110,7 @@ install(TARGETS brusher
 )
 
 # Automate Qt runtime deployment (windeployqt / macdeployqt) for install and CPack
-if(QT_VERSION_GREATER_EQUAL "6.3")
+if(QT_VERSION VERSION_GREATER_EQUAL "6.3")
     qt_generate_deploy_app_script(
         TARGET brusher
         OUTPUT_SCRIPT deploy_script
