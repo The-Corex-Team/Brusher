@@ -1,36 +1,29 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 
-project(Brusher VERSION 1.0.0 LANGUAGES CXX)
-
-# ------------------------------------------------------------
-# C++ Configuration
-# ------------------------------------------------------------
+project(Brusher
+    VERSION 1.0.0
+    DESCRIPTION "Brusher Digital Painting Software"
+    HOMEPAGE_URL "https://github.com/The-Corex-Team/Brusher"
+    LANGUAGES CXX
+)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# ------------------------------------------------------------
-# Qt Configuration
-# ------------------------------------------------------------
-
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-include(GNUInstallDirs)
-
 find_package(Qt6 REQUIRED COMPONENTS
-    Core
     Widgets
     OpenGL
     OpenGLWidgets
     Svg
+    Network
 )
 
-# ------------------------------------------------------------
-# Sources
-# ------------------------------------------------------------
+qt_standard_project_setup()
 
 set(SOURCES
     src/main.cpp
@@ -42,17 +35,7 @@ set(SOURCES
     src/canvas/CanvasWidget.cpp
     src/canvas/CanvasWidget.h
 
-    src/history/DocumentSnapshot.cpp
-    src/history/DocumentSnapshot.h
-    src/history/HistoryManager.cpp
-    src/history/HistoryManager.h
-
-    src/filters/ImageFilters.cpp
-    src/filters/ImageFilters.h
-
-    src/io/ProjectSerializer.cpp
-    src/io/ProjectSerializer.h
-
+    src/tools/Tool.h
     src/tools/PenTool.cpp
     src/tools/PenTool.h
     src/tools/EraserTool.cpp
@@ -63,25 +46,9 @@ set(SOURCES
     src/tools/EyedropperTool.h
     src/tools/LineTool.cpp
     src/tools/LineTool.h
-    src/tools/SelectionTool.cpp
-    src/tools/SelectionTool.h
-    src/tools/RectSelectTool.cpp
-    src/tools/RectSelectTool.h
-    src/tools/EllipseSelectTool.cpp
-    src/tools/EllipseSelectTool.h
-    src/tools/LassoSelectTool.cpp
-    src/tools/LassoSelectTool.h
-    src/tools/TextTool.cpp
-    src/tools/TextTool.h
-    src/tools/MoveTool.cpp
-    src/tools/MoveTool.h
-    src/tools/ZoomTool.cpp
-    src/tools/ZoomTool.h
 
     src/ui/panels/ToolPanel.cpp
     src/ui/panels/ToolPanel.h
-    src/ui/panels/ToolOptionsBar.cpp
-    src/ui/panels/ToolOptionsBar.h
     src/ui/panels/ColorPanel.cpp
     src/ui/panels/ColorPanel.h
     src/ui/panels/LayerPanel.cpp
@@ -89,24 +56,11 @@ set(SOURCES
 
     src/ui/dialogs/NewProjectDialog.cpp
     src/ui/dialogs/NewProjectDialog.h
-    src/ui/dialogs/CanvasSizeDialog.cpp
-    src/ui/dialogs/CanvasSizeDialog.h
-
-    src/ui/BrusherTheme.cpp
-    src/ui/BrusherTheme.h
-
-    src/ui/BrushSettingsPopup.cpp
-    src/ui/BrushSettingsPopup.h
 
     resources.qrc
 )
 
-# ------------------------------------------------------------
-# Application
-# ------------------------------------------------------------
-
-add_executable(brusher
-    WIN32
+qt_add_executable(brusher
     ${SOURCES}
 )
 
@@ -115,137 +69,55 @@ target_include_directories(brusher PRIVATE
 )
 
 target_link_libraries(brusher PRIVATE
-    Qt6::Core
     Qt6::Widgets
     Qt6::OpenGL
     Qt6::OpenGLWidgets
     Qt6::Svg
+    Qt6::Network
 )
-
-# ------------------------------------------------------------
-# macOS Application Bundle
-# ------------------------------------------------------------
 
 set_target_properties(brusher PROPERTIES
-    MACOSX_BUNDLE TRUE
-    MACOSX_BUNDLE_BUNDLE_NAME "Brusher"
-    MACOSX_BUNDLE_GUI_IDENTIFIER "com.brusher.app"
-    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_COPYRIGHT "© Brusher"
-    MACOSX_BUNDLE_INFO_STRING "Brusher ${PROJECT_NAME} ${PROJECT_VERSION}"
+    OUTPUT_NAME "brusher"
 )
 
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Installation
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+include(GNUInstallDirs)
 
 install(TARGETS brusher
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     BUNDLE DESTINATION .
 )
 
-# ------------------------------------------------------------
-# Windows Qt Configuration
-#
-# brusher.exe is installed in:
-#   bin/
-#
-# Qt plugins are deployed to:
-#   plugins/
-#
-# qt.conf tells Qt to look for plugins one level above bin/.
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Qt deployment
+# ---------------------------------------------------------------------------
 
 if(WIN32)
-    install(
-        FILES
-            packaging/qt.conf
-        DESTINATION ${CMAKE_INSTALL_BINDIR}
+    qt_generate_deploy_app_script(
+        TARGET brusher
+        OUTPUT_SCRIPT deploy_script
+        NO_TRANSLATIONS
     )
+
+    install(SCRIPT ${deploy_script})
 endif()
 
-# ------------------------------------------------------------
-# Qt Runtime Deployment
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Debian package
+# ---------------------------------------------------------------------------
 
-qt_generate_deploy_app_script(
-    TARGET brusher
-    OUTPUT_SCRIPT deploy_script
-    NO_UNSUPPORTED_PLATFORM_ERROR
-)
-
-install(SCRIPT ${deploy_script})
-
-# ------------------------------------------------------------
-# Linux Desktop Integration
-# ------------------------------------------------------------
-
-if(LINUX)
-    install(
-        FILES
-            packaging/brusher.desktop
-        DESTINATION
-            ${CMAKE_INSTALL_DATADIR}/applications
-        RENAME
-            brusher.desktop
-    )
-
-    install(
-        FILES
-            packaging/icons/Brusher.svg
-        DESTINATION
-            ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
-        RENAME
-            brusher.svg
-    )
-endif()
-
-# ------------------------------------------------------------
-# CPack
-# ------------------------------------------------------------
-
-set(CPACK_PACKAGE_NAME "Brusher")
-set(CPACK_PACKAGE_VENDOR "Brusher")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Modern Painting Application")
+set(CPACK_PACKAGE_VENDOR "Corex Team")
+set(CPACK_PACKAGE_CONTACT "walter.muller.1708@gmail.com")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Brusher Digital Painting Software")
+set(CPACK_PACKAGE_NAME "brusher")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/walter-322/Brusher")
-set(CPACK_PACKAGE_CONTACT "Brusher")
 
-# ------------------------------------------------------------
-# Debian Package
-# ------------------------------------------------------------
-
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Brusher")
-set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
-set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_DEBIAN_POSTINST_SCRIPT
-    "${CMAKE_SOURCE_DIR}/packaging/postinst"
-)
-set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
-
-# ------------------------------------------------------------
-# Windows NSIS Installer
-# ------------------------------------------------------------
-
-set(CPACK_NSIS_DISPLAY_NAME "Brusher")
-set(CPACK_NSIS_PACKAGE_NAME "Brusher")
-
-set(CPACK_NSIS_CREATE_ICONS_EXTRA
-    "CreateShortCut '$SMPROGRAMS\\\\$START_MENU_FOLDER\\\\Brusher.lnk' '$INSTDIR\\\\bin\\\\brusher.exe'"
-)
-
-set(CPACK_NSIS_DELETE_ICONS_EXTRA
-    "Delete '$SMPROGRAMS\\\\$START_MENU_FOLDER\\\\Brusher.lnk'"
-)
-
-set(CPACK_NSIS_URL_INFO_ABOUT
-    "${CPACK_PACKAGE_HOMEPAGE_URL}"
-)
-
-# ------------------------------------------------------------
-# Enable CPack
-# ------------------------------------------------------------
+if(UNIX AND NOT APPLE)
+    set(CPACK_GENERATOR "DEB")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+endif()
 
 include(CPack)
