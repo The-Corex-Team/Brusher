@@ -1,81 +1,20 @@
-#include "ui/MainWindow.h"
-#include "ui/BrusherTheme.h"
-
 #include <QApplication>
-#include <QWidget>
-#include <QPixmap>
-#include <QPainter>
-#include <QEventLoop>
-#include <QTimer>
-#include <QScreen>
-#include <QGuiApplication>
-#include <cstdio>
-#include <QIcon>
-#include <QPixmapCache>
 #include <QSurfaceFormat>
+#include <QFile>
+#include <QIcon>
+#include <QPixmap>
+#include <QPalette>
+#include <QColor>
+#include <cstdio>
 
-// Splash configuration
-const double SPLASH_SCALE = 0.50;      // 50% size
-const int SPLASH_DURATION_MS = 2000;  // 2 seconds
-
-class SplashWindow : public QWidget {
-public:
-    SplashWindow(const QString& imagePath,
-                 double scale,
-                 QWidget* parent = nullptr)
-        : QWidget(parent),
-          m_pixmap(imagePath)
-    {
-        if (m_pixmap.isNull()) {
-            fprintf(stderr,
-                    "ERROR: Failed to load splash image: %s\n",
-                    imagePath.toUtf8().constData());
-            return;
-        }
-
-        QSize scaledSize(
-            static_cast<int>(m_pixmap.width() * scale),
-            static_cast<int>(m_pixmap.height() * scale)
-        );
-
-        m_pixmap = m_pixmap.scaled(
-            scaledSize,
-            Qt::KeepAspectRatio,
-            Qt::SmoothTransformation
-        );
-
-        setFixedSize(scaledSize);
-
-        setWindowFlags(
-            Qt::FramelessWindowHint |
-            Qt::WindowStaysOnTopHint |
-            Qt::Dialog
-        );
-    }
-
-protected:
-    void paintEvent(QPaintEvent*) override
-    {
-        QPainter painter(this);
-        painter.drawPixmap(rect(), m_pixmap);
-    }
-
-private:
-    QPixmap m_pixmap;
-};
+#include "ui/MainWindow.h"
 
 int main(int argc, char *argv[])
 {
-    // Prefer Wayland; fall back to X11. Qt tries each plugin in order and
-    // uses the first that initializes successfully. Set before constructing
-    // QApplication so it takes effect on the first platform lookup. This
-    // affects AppImage, system installs, and dev runs identically.
-    qputenv("QT_QPA_PLATFORM", "wayland;xcb");
-
-    // Keep the RHI on OpenGL. QOpenGLWidget-based canvases render more
-    // reliably on Wayland with OpenGL than with Vulkan, especially on
-    // NVIDIA drivers where Vulkan+Wayland is still bumpy.
-    qputenv("QSG_RHI_BACKEND", "opengl");
+    // Let Qt automatically select the native platform plugin:
+    // Windows -> qwindows
+    // Linux   -> Wayland/X11 according to the environment
+    // macOS   -> Cocoa
 
     QSurfaceFormat surfaceFormat;
     surfaceFormat.setDepthBufferSize(0);
@@ -85,60 +24,24 @@ int main(int argc, char *argv[])
     QSurfaceFormat::setDefaultFormat(surfaceFormat);
 
     QApplication a(argc, argv);
-    a.setWindowIcon(QIcon(QStringLiteral(":/src/icons/Brusher.svg")));
-    QPixmapCache::setCacheLimit(1024);
-    fprintf(stderr, "DEBUG: App created\n");
 
-    {
-        SplashWindow splash(
-            QStringLiteral(":/src/icons/Brusher_Splashscreen.png"),
-            SPLASH_SCALE
-        );
+    fprintf(stderr, "DEBUG: QApplication created\n");
 
-        fprintf(stderr, "DEBUG: SplashWindow created\n");
+    a.setApplicationName("Brusher");
+    a.setApplicationDisplayName("Brusher");
+    a.setOrganizationName("Corex Team");
 
-        // Center splash
-        if (QScreen* screen = QGuiApplication::primaryScreen()) {
-            QRect g = screen->availableGeometry();
+    QIcon appIcon(":/src/icons/Brusher.svg");
+    a.setWindowIcon(appIcon);
 
-            QPoint center(
-                g.center().x() - splash.width() / 2,
-                g.center().y() - splash.height() / 2
-            );
-
-            splash.move(center);
-        }
-
-        splash.show();
-        splash.raise();
-        splash.activateWindow();
-
-        a.processEvents();
-
-        fprintf(stderr, "DEBUG: Splash shown\n");
-
-        // Wait
-        QEventLoop loop;
-        QTimer::singleShot(
-            SPLASH_DURATION_MS,
-            &loop,
-            &QEventLoop::quit
-        );
-
-        loop.exec();
-
-        splash.close();
+    QFile styleFile(":/src/styles/brusher_dark.qss");
+    if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        a.setStyleSheet(QString::fromUtf8(styleFile.readAll()));
+        styleFile.close();
     }
-
-    fprintf(stderr, "DEBUG: Splash closed\n");
-
-    // Apply theme
-    BrusherTheme::apply(a);
 
     MainWindow w;
     w.show();
-
-    fprintf(stderr, "DEBUG: MainWindow shown\n");
 
     return a.exec();
 }
