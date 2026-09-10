@@ -2,9 +2,13 @@ name: Build Brusher - Windows
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
+
   workflow_dispatch:
 
 jobs:
@@ -13,18 +17,30 @@ jobs:
     runs-on: windows-2022
 
     env:
-      QT_VERSION: '6.8.3'
-      QT_MODULES: 'qtimageformats'
+      QT_VERSION: "6.8.3"
+      QT_MODULES: "qtimageformats"
 
     steps:
+      # ------------------------------------------------------
+      # Checkout
+      # ------------------------------------------------------
+
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      # ------------------------------------------------------
+      # MSVC
+      # ------------------------------------------------------
 
       - name: Set up MSVC Dev Cmd
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-          vsversion: '17.0'
+          vsversion: "17.0"
+
+      # ------------------------------------------------------
+      # Qt
+      # ------------------------------------------------------
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -36,6 +52,10 @@ jobs:
           modules: ${{ env.QT_MODULES }}
           cache: true
 
+      # ------------------------------------------------------
+      # Configure
+      # ------------------------------------------------------
+
       - name: Configure CMake
         shell: cmd
         run: |
@@ -44,33 +64,61 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release ^
             -DCMAKE_INSTALL_PREFIX=dist
 
+      # ------------------------------------------------------
+      # Build
+      # ------------------------------------------------------
+
       - name: Build Brusher
         shell: cmd
         run: |
           cmake --build build --parallel
+
+      # ------------------------------------------------------
+      # Install + Qt Deployment
+      # ------------------------------------------------------
 
       - name: Install Brusher
         shell: cmd
         run: |
           cmake --install build
 
-      - name: Verify Installed Package
+      # ------------------------------------------------------
+      # Verify Deployment
+      # ------------------------------------------------------
+
+      - name: Verify Windows Deployment
         shell: pwsh
         run: |
-          $exe = Join-Path $env:GITHUB_WORKSPACE "dist\bin\brusher.exe"
+          $required = @(
+            "dist\bin\brusher.exe",
+            "dist\bin\qt.conf",
+            "dist\plugins\platforms\qwindows.dll"
+          )
 
-          if (-not (Test-Path $exe)) {
-            Write-Error "Brusher executable was not installed: $exe"
+          $failed = $false
+
+          foreach ($file in $required) {
+            if (Test-Path $file) {
+              Write-Host "[OK] $file"
+            }
+            else {
+              Write-Host "::error::Missing $file"
+              $failed = $true
+            }
+          }
+
+          Write-Host ""
+          Write-Host "Installed package:"
+          Get-ChildItem dist -Recurse |
+            Select-Object FullName
+
+          if ($failed) {
             exit 1
           }
 
-          Write-Host "Executable found:"
-          Get-Item $exe
-
-          Write-Host ""
-          Write-Host "Installed files:"
-          Get-ChildItem "$env:GITHUB_WORKSPACE\dist\bin" -Recurse |
-            Select-Object FullName
+      # ------------------------------------------------------
+      # CPack ZIP
+      # ------------------------------------------------------
 
       - name: Create ZIP Package
         shell: cmd
@@ -78,17 +126,30 @@ jobs:
           cd build
           cpack -G ZIP
 
+      # ------------------------------------------------------
+      # CPack NSIS
+      # ------------------------------------------------------
+
       - name: Create NSIS Installer
         shell: cmd
         run: |
           cd build
           cpack -G NSIS
 
+      # ------------------------------------------------------
+      # Upload Standalone Directory
+      # ------------------------------------------------------
+
       - name: Upload Windows Standalone Package
         uses: actions/upload-artifact@v4
         with:
           name: Brusher-Windows-x64
           path: dist/
+          if-no-files-found: error
+
+      # ------------------------------------------------------
+      # Upload ZIP
+      # ------------------------------------------------------
 
       - name: Upload Windows ZIP
         uses: actions/upload-artifact@v4
@@ -96,6 +157,10 @@ jobs:
           name: Brusher-Windows-x64-Zip
           path: build/Brusher-*-win64.zip
           if-no-files-found: error
+
+      # ------------------------------------------------------
+      # Upload NSIS Installer
+      # ------------------------------------------------------
 
       - name: Upload Windows Installer
         uses: actions/upload-artifact@v4
@@ -105,94 +170,159 @@ jobs:
           if-no-files-found: error
 
 
+  # ==========================================================
+  # Smoke Test
+  # ==========================================================
+
   smoke-test:
-    name: Smoke-Test Package
+    name: Smoke-Test Windows Package
     needs: build
     runs-on: windows-2022
 
     steps:
+
+      # ------------------------------------------------------
+      # Download Package
+      # ------------------------------------------------------
+
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
           name: Brusher-Windows-x64
           path: test_dist
 
-      - name: Verify Package Contents
+      # ------------------------------------------------------
+      # Verify Package
+      # ------------------------------------------------------
+
+      - name: Verify Package
         shell: pwsh
         run: |
           $exe = Join-Path $env:GITHUB_WORKSPACE "test_dist\bin\brusher.exe"
+          $qtconf = Join-Path $env:GITHUB_WORKSPACE "test_dist\bin\qt.conf"
+          $platform = Join-Path $env:GITHUB_WORKSPACE "test_dist\plugins\platforms\qwindows.dll"
 
           if (-not (Test-Path $exe)) {
-            Write-Error "brusher.exe was not found at:"
-            Write-Error $exe
-
-            Get-ChildItem test_dist -Recurse |
-              Select-Object FullName
-
+            Write-Error "brusher.exe not found."
             exit 1
           }
 
-          Write-Host "Found: $exe"
+          if (-not (Test-Path $qtconf)) {
+            Write-Error "qt.conf not found."
+            exit 1
+          }
+
+          if (-not (Test-Path $platform)) {
+            Write-Error "qwindows.dll not found."
+            exit 1
+          }
+
+          Write-Host "[OK] brusher.exe"
+          Write-Host "[OK] qt.conf"
+          Write-Host "[OK] qwindows.dll"
+
+      # ------------------------------------------------------
+      # Enable Windows Error Reporting Dumps
+      # ------------------------------------------------------
 
       - name: Enable WER Crash Dumps
         shell: cmd
         run: |
-          if not exist "%LOCALAPPDATA%\CrashDumps" mkdir "%LOCALAPPDATA%\CrashDumps"
+          if not exist "%LOCALAPPDATA%\CrashDumps" (
+            mkdir "%LOCALAPPDATA%\CrashDumps"
+          )
 
-          reg add "HKCU\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\brusher.exe" /f /v DumpType /t REG_DWORD /d 2
+          reg add "HKCU\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\brusher.exe" ^
+            /f ^
+            /v DumpType ^
+            /t REG_DWORD ^
+            /d 2
 
-          reg add "HKCU\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\brusher.exe" /f /v DumpFolder /t REG_EXPAND_SZ /d "%%LOCALAPPDATA%%\CrashDumps"
+          reg add "HKCU\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps\brusher.exe" ^
+            /f ^
+            /v DumpFolder ^
+            /t REG_EXPAND_SZ ^
+            /d "%%LOCALAPPDATA%%\CrashDumps"
+
+      # ------------------------------------------------------
+      # Run Brusher
+      # ------------------------------------------------------
 
       - name: Run Brusher
         shell: pwsh
         run: |
           $exe = Join-Path $env:GITHUB_WORKSPACE "test_dist\bin\brusher.exe"
+          $workingDirectory = Split-Path $exe
 
           $env:QT_LOGGING_TO_CONSOLE = "1"
           $env:QT_DEBUG_PLUGINS = "1"
 
           Write-Host "Starting Brusher..."
+          Write-Host "Executable: $exe"
+          Write-Host "Working directory: $workingDirectory"
+
           $process = Start-Process `
             -FilePath $exe `
-            -WorkingDirectory (Split-Path $exe) `
+            -WorkingDirectory $workingDirectory `
             -PassThru
 
           Start-Sleep -Seconds 5
 
           if ($process.HasExited) {
-            Write-Error "Brusher exited during smoke test."
+            Write-Error "Brusher exited unexpectedly."
             Write-Error "Exit code: $($process.ExitCode)"
             exit 1
           }
 
-          Write-Host "Brusher is running successfully."
+          Write-Host "[OK] Brusher is running."
 
-          Stop-Process -Id $process.Id -Force
+          Stop-Process `
+            -Id $process.Id `
+            -Force
+
+          Write-Host "[OK] Brusher stopped."
+
+      # ------------------------------------------------------
+      # Check Crash Dumps
+      # ------------------------------------------------------
 
       - name: Check for Crash Dumps
         if: always()
         shell: pwsh
         run: |
-          $dumpDir = Join-Path $env:LOCALAPPDATA 'CrashDumps'
+          $dumpDir = Join-Path $env:LOCALAPPDATA "CrashDumps"
 
           if (Test-Path $dumpDir) {
-            $dumps = Get-ChildItem $dumpDir -Filter '*.dmp'
+            $dumps = Get-ChildItem `
+              $dumpDir `
+              -Filter "*.dmp"
 
-            if ($dumps) {
-              Write-Host "::error::Crash dump detected during smoke test!"
+            if ($dumps.Count -gt 0) {
+              Write-Host "::error::Crash dump detected."
 
               foreach ($dump in $dumps) {
-                Copy-Item $dump.FullName $env:GITHUB_WORKSPACE -Force
+                Write-Host "Dump: $($dump.FullName)"
+
+                Copy-Item `
+                  $dump.FullName `
+                  $env:GITHUB_WORKSPACE `
+                  -Force
               }
 
               exit 1
             }
           }
 
+          Write-Host "[OK] No crash dump detected."
+
+      # ------------------------------------------------------
+      # Upload Crash Dumps
+      # ------------------------------------------------------
+
       - name: Upload Crash Dump Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Brusher-Windows-Crash-Dump
-          path: '*.dmp'
+          path: "*.dmp"
           if-no-files-found: ignore
