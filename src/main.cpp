@@ -2,17 +2,15 @@
 #include <QSurfaceFormat>
 #include <QFile>
 #include <QIcon>
-#include <QPixmap>
-#include <QPalette>
-#include <QColor>
-#include <cstdio>
+#include <QDebug>
 
 #include "ui/MainWindow.h"
 
 int main(int argc, char *argv[])
 {
-    // Let Qt automatically select the native platform plugin:
-    // Windows -> qwindows
+    // Let Qt choose the correct native platform plugin.
+    //
+    // Windows -> QWindows
     // Linux   -> Wayland/X11 according to the environment
     // macOS   -> Cocoa
 
@@ -23,25 +21,57 @@ int main(int argc, char *argv[])
     surfaceFormat.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     QSurfaceFormat::setDefaultFormat(surfaceFormat);
 
-    QApplication a(argc, argv);
+    QApplication app(argc, argv);
 
-    fprintf(stderr, "DEBUG: QApplication created\n");
+    app.setApplicationName("Brusher");
+    app.setApplicationDisplayName("Brusher");
+    app.setOrganizationName("Corex Team");
 
-    a.setApplicationName("Brusher");
-    a.setApplicationDisplayName("Brusher");
-    a.setOrganizationName("Corex Team");
+    // -----------------------------------------------------------------------
+    // Verify Qt resources
+    // -----------------------------------------------------------------------
 
-    QIcon appIcon(":/src/icons/Brusher.svg");
-    a.setWindowIcon(appIcon);
+    const QString iconPath = QStringLiteral(":/src/icons/Brusher.svg");
+    const QString stylePath = QStringLiteral(":/src/styles/brusher_dark.qss");
 
-    QFile styleFile(":/src/styles/brusher_dark.qss");
-    if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        a.setStyleSheet(QString::fromUtf8(styleFile.readAll()));
-        styleFile.close();
+    QFile iconFile(iconPath);
+    QFile styleFile(stylePath);
+
+    qDebug() << "Brusher resource check:";
+    qDebug() << "  Application icon:" << iconFile.exists();
+    qDebug() << "  Style sheet:" << styleFile.exists();
+
+    // -----------------------------------------------------------------------
+    // Application icon
+    // -----------------------------------------------------------------------
+
+    if (iconFile.exists()) {
+        QIcon appIcon(iconPath);
+
+        qDebug() << "  Application icon isNull:" << appIcon.isNull();
+
+        if (!appIcon.isNull()) {
+            app.setWindowIcon(appIcon);
+        }
     }
 
-    MainWindow w;
-    w.show();
+    // -----------------------------------------------------------------------
+    // Dark theme
+    // -----------------------------------------------------------------------
 
-    return a.exec();
+    if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        app.setStyleSheet(QString::fromUtf8(styleFile.readAll()));
+        styleFile.close();
+    } else {
+        qWarning() << "Could not open style sheet:" << stylePath;
+    }
+
+    // -----------------------------------------------------------------------
+    // Main window
+    // -----------------------------------------------------------------------
+
+    MainWindow window;
+    window.show();
+
+    return app.exec();
 }
