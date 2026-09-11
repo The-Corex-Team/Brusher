@@ -6,6 +6,7 @@
 #include <QIcon>
 #include <QLabel>
 #include <QHBoxLayout>
+#include <QDebug>
 
 ToolPanel::ToolPanel(QWidget *parent)
     : QDockWidget(tr("Tools"), parent)
