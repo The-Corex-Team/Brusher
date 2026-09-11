@@ -1,26 +1,28 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
     <qresource prefix="/">
-        <file>src/icons/brush.svg</file>
-        <file>src/icons/colorpicker.svg</file>
-        <file>src/icons/eraser.svg</file>
-        <file>src/icons/fill.svg</file>
-        <file>src/icons/move.svg</file>
-        <file>src/icons/pan.svg</file>
-        <file>src/icons/pointer.svg</file>
-        <file>src/icons/rectselect.svg</file>
-        <file>src/icons/ellipseselect.svg</file>
-        <file>src/icons/lassoselect.svg</file>
-        <file>src/icons/text.svg</file>
-        <file>src/icons/zoom.svg</file>
-        <file>src/icons/layer_visible.svg</file>
-        <file>src/icons/layer_new.svg</file>
-        <file>src/icons/layer_delete.svg</file>
-        <file>src/icons/layer_duplicate.svg</file>
-        <file>src/icons/swap.svg</file>
-        <file>src/icons/line.svg</file>
+        <file>src/icons/brush.png</file>
+        <file>src/icons/colorpicker.png</file>
+        <file>src/icons/eraser.png</file>
+        <file>src/icons/fill.png</file>
+        <file>src/icons/move.png</file>
+        <file>src/icons/pan.png</file>
+        <file>src/icons/pointer.png</file>
+        <file>src/icons/rectselect.png</file>
+        <file>src/icons/ellipseselect.png</file>
+        <file>src/icons/lassoselect.png</file>
+        <file>src/icons/text.png</file>
+        <file>src/icons/zoom.png</file>
+        <file>src/icons/layer_visible.png</file>
+        <file>src/icons/layer_new.png</file>
+        <file>src/icons/layer_delete.png</file>
+        <file>src/icons/layer_duplicate.png</file>
+        <file>src/icons/swap.png</file>
+        <file>src/icons/line.png</file>
+
+        <file>src/icons/Brusher.png</file>
         <file>src/icons/Brusher_Splashscreen.png</file>
+
         <file>src/styles/brusher_dark.qss</file>
-        <file>src/icons/Brusher.svg</file>
     </qresource>
 </RCC>

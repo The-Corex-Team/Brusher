@@ -34,7 +34,7 @@ LayerPanel::LayerPanel(CanvasWidget *canvas, QWidget *parent)
     
     m_blendModeCombo = new QComboBox();
     m_blendModeCombo->addItems({"Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten"});
-    m_blendModeCombo->setFixedWidth(90);
+    m_blendModeCombo->setFixedWidth(90);png
     topLayout->addWidget(m_blendModeCombo);
     
     topLayout->addSpacing(5);
@@ -82,17 +82,17 @@ LayerPanel::LayerPanel(CanvasWidget *canvas, QWidget *parent)
     btnLayout->setSpacing(2);
     
     m_duplicateBtn = new QToolButton(content);
-    m_duplicateBtn->setIcon(QIcon(":/src/icons/layer_duplicate.svg"));
+    m_duplicateBtn->setIcon(QIcon(":/src/icons/layer_duplicate.png"));
     m_duplicateBtn->setToolTip(tr("Duplicate Layer"));
     m_duplicateBtn->setFixedSize(24, 24);
     
     m_addBtn = new QToolButton(content);
-    m_addBtn->setIcon(QIcon(":/src/icons/layer_new.svg"));
+    m_addBtn->setIcon(QIcon(":/src/icons/layer_new.png"));
     m_addBtn->setToolTip(tr("New Layer"));
     m_addBtn->setFixedSize(24, 24);
     
     m_removeBtn = new QToolButton(content);
-    m_removeBtn->setIcon(QIcon(":/src/icons/layer_delete.svg"));
+    m_removeBtn->setIcon(QIcon(":/src/icons/layer_delete.png"));
     m_removeBtn->setToolTip(tr("Delete Layer"));
     m_removeBtn->setFixedSize(24, 24);
     
@@ -122,7 +122,7 @@ LayerPanel::LayerPanel(CanvasWidget *canvas, QWidget *parent)
             const bool isVisible = item->checkState() == Qt::Checked;
 
             if (isVisible) {
-                item->setIcon(QIcon(":/src/icons/layer_visible.svg"));
+                item->setIcon(QIcon(":/src/icons/layer_visible.png"));
             } else {
                 item->setIcon(QIcon());
             }
@@ -215,7 +215,7 @@ void LayerPanel::onVisibilityToggled(int row)
     
     // We use a custom icon for unchecked to hide the checkmark, but list widget handles state
     if (isVisible) {
-        item->setIcon(QIcon(":/src/icons/layer_visible.svg"));
+        item->setIcon(QIcon(":/src/icons/layer_visible.png"));
     } else {
         item->setIcon(QIcon()); // Empty icon
     }
@@ -254,7 +254,7 @@ void LayerPanel::setupLayerItem(int row, const QString &name, bool visible)
     item->setCheckState(visible ? Qt::Checked : Qt::Unchecked);
     
     if (visible) {
-        item->setIcon(QIcon(":/src/icons/layer_visible.svg"));
+        item->setIcon(QIcon(":/src/icons/layer_visible.png"));
     }
     
     m_layerList->insertItem(row, item);

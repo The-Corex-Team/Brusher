@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
     // Verify Qt resources
     // -----------------------------------------------------------------------
 
-    const QString iconPath = QStringLiteral(":/src/icons/Brusher.svg");
+    const QString iconPath = QStringLiteral(":/src/icons/Brusher.png");
     const QString stylePath = QStringLiteral(":/src/styles/brusher_dark.qss");
 
     QFile iconFile(iconPath);
