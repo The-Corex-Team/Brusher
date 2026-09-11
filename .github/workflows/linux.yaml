@@ -17,8 +17,16 @@ jobs:
       QT_MODULES: 'qtimageformats'
 
     steps:
+      # ---------------------------------------------------------------------
+      # Checkout
+      # ---------------------------------------------------------------------
+
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------------
+      # Qt
+      # ---------------------------------------------------------------------
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -26,6 +34,10 @@ jobs:
           version: ${{ env.QT_VERSION }}
           modules: ${{ env.QT_MODULES }}
           cache: true
+
+      # ---------------------------------------------------------------------
+      # Dependencies
+      # ---------------------------------------------------------------------
 
       - name: Install Linux dependencies
         run: |
@@ -64,15 +76,28 @@ jobs:
             file \
             desktop-file-utils
 
+      # ---------------------------------------------------------------------
+      # Clean build
+      # ---------------------------------------------------------------------
+
       - name: Clean Build
         run: |
           rm -rf build
           rm -rf AppDir
 
+      # ---------------------------------------------------------------------
+      # Configure
+      # ---------------------------------------------------------------------
+
       - name: Configure CMake
         run: |
           cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr
+
+      # ---------------------------------------------------------------------
+      # Build
+      # ---------------------------------------------------------------------
 
       - name: Build
         run: |
@@ -80,7 +105,11 @@ jobs:
             --config Release \
             --parallel
 
-      - name: Install into portable directory
+      # ---------------------------------------------------------------------
+      # Install and deploy Qt
+      # ---------------------------------------------------------------------
+
+      - name: Install Brusher
         run: |
           set -euo pipefail
 
@@ -88,8 +117,11 @@ jobs:
 
           DESTDIR="$PWD/AppDir" \
             cmake --install build \
-            --config Release \
-            --prefix /usr
+            --config Release
+
+      # ---------------------------------------------------------------------
+      # Create archive
+      # ---------------------------------------------------------------------
 
       - name: Create Linux portable archive
         run: |
@@ -99,7 +131,11 @@ jobs:
 
           ls -lh Brusher-Linux.tar.gz
 
-      - name: Upload Linux artifact
+      # ---------------------------------------------------------------------
+      # Upload
+      # ---------------------------------------------------------------------
+
+      - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Brusher-Linux

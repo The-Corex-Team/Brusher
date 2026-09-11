@@ -34,32 +34,47 @@ jobs:
           cache: true
 
       # ---------------------------------------------------------------------
-      # Configure
+      # Clean workspace
+      # ---------------------------------------------------------------------
+
+      - name: Clean Build
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force package -ErrorAction SilentlyContinue
+
+      # ---------------------------------------------------------------------
+      # Configure CMake
       # ---------------------------------------------------------------------
 
       - name: Configure CMake
+        shell: pwsh
         run: |
-          cmake -S . -B build
+          $prefix = Join-Path $env:GITHUB_WORKSPACE "package"
+
+          cmake -S . -B build `
+            -DCMAKE_INSTALL_PREFIX="$prefix"
 
       # ---------------------------------------------------------------------
       # Build
       # ---------------------------------------------------------------------
 
       - name: Build
+        shell: pwsh
         run: |
           cmake --build build `
             --config Release `
             --parallel
 
       # ---------------------------------------------------------------------
-      # Install and deploy
+      # Install and deploy Qt
       # ---------------------------------------------------------------------
 
       - name: Install Brusher
+        shell: pwsh
         run: |
           cmake --install build `
-            --config Release `
-            --prefix "${{ github.workspace }}\package"
+            --config Release
 
       # ---------------------------------------------------------------------
       # Verify package

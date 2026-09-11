@@ -7,13 +7,17 @@ project(Brusher
     LANGUAGES CXX
 )
 
+# ---------------------------------------------------------------------------
+# C++ configuration
+# ---------------------------------------------------------------------------
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
+# ---------------------------------------------------------------------------
+# Qt
+# ---------------------------------------------------------------------------
 
 find_package(Qt6 REQUIRED COMPONENTS
     Widgets
@@ -25,133 +29,65 @@ find_package(Qt6 REQUIRED COMPONENTS
 
 qt_standard_project_setup()
 
-set(SOURCES
-    # -----------------------------------------------------------------------
-    # Application
-    # -----------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Sources
+# ---------------------------------------------------------------------------
 
+set(SOURCES
+    # Application
     src/main.cpp
 
-    # -----------------------------------------------------------------------
     # Main UI
-    # -----------------------------------------------------------------------
-
     src/ui/MainWindow.cpp
-    src/ui/MainWindow.h
     src/ui/MainWindow.ui
 
-    # -----------------------------------------------------------------------
     # Canvas
-    # -----------------------------------------------------------------------
-
     src/canvas/CanvasWidget.cpp
-    src/canvas/CanvasWidget.h
 
-    # -----------------------------------------------------------------------
-    # Tools - basic
-    # -----------------------------------------------------------------------
-
-    src/tools/Tool.h
-
+    # Basic tools
     src/tools/PenTool.cpp
-    src/tools/PenTool.h
-
     src/tools/EraserTool.cpp
-    src/tools/EraserTool.h
-
     src/tools/FillTool.cpp
-    src/tools/FillTool.h
-
     src/tools/EyedropperTool.cpp
-    src/tools/EyedropperTool.h
-
     src/tools/LineTool.cpp
-    src/tools/LineTool.h
 
-    # -----------------------------------------------------------------------
-    # Tools - advanced
-    # -----------------------------------------------------------------------
-
+    # Advanced tools
     src/tools/SelectionTool.cpp
-    src/tools/SelectionTool.h
-
     src/tools/RectSelectTool.cpp
-    src/tools/RectSelectTool.h
-
     src/tools/EllipseSelectTool.cpp
-    src/tools/EllipseSelectTool.h
-
     src/tools/LassoSelectTool.cpp
-    src/tools/LassoSelectTool.h
-
     src/tools/TextTool.cpp
-    src/tools/TextTool.h
-
     src/tools/MoveTool.cpp
-    src/tools/MoveTool.h
-
     src/tools/ZoomTool.cpp
-    src/tools/ZoomTool.h
 
-    # -----------------------------------------------------------------------
     # UI panels
-    # -----------------------------------------------------------------------
-
     src/ui/panels/ToolPanel.cpp
-    src/ui/panels/ToolPanel.h
-
     src/ui/panels/ToolOptionsBar.cpp
-    src/ui/panels/ToolOptionsBar.h
-
     src/ui/panels/ColorPanel.cpp
-    src/ui/panels/ColorPanel.h
-
     src/ui/panels/LayerPanel.cpp
-    src/ui/panels/LayerPanel.h
 
-    # -----------------------------------------------------------------------
     # UI dialogs / popups
-    # -----------------------------------------------------------------------
-
     src/ui/dialogs/NewProjectDialog.cpp
-    src/ui/dialogs/NewProjectDialog.h
-
     src/ui/dialogs/CanvasSizeDialog.cpp
-    src/ui/dialogs/CanvasSizeDialog.h
-
     src/ui/BrushSettingsPopup.cpp
-    src/ui/BrushSettingsPopup.h
 
-    # -----------------------------------------------------------------------
     # History
-    # -----------------------------------------------------------------------
-
     src/history/DocumentSnapshot.cpp
-    src/history/DocumentSnapshot.h
-
     src/history/HistoryManager.cpp
-    src/history/HistoryManager.h
 
-    # -----------------------------------------------------------------------
     # Image filters
-    # -----------------------------------------------------------------------
-
     src/filters/ImageFilters.cpp
-    src/filters/ImageFilters.h
 
-    # -----------------------------------------------------------------------
     # Project I/O
-    # -----------------------------------------------------------------------
-
     src/io/ProjectSerializer.cpp
-    src/io/ProjectSerializer.h
 
-    # -----------------------------------------------------------------------
     # Qt resources
-    # -----------------------------------------------------------------------
-
     resources.qrc
 )
+
+# ---------------------------------------------------------------------------
+# Executable
+# ---------------------------------------------------------------------------
 
 qt_add_executable(brusher
     ${SOURCES}
@@ -169,8 +105,14 @@ target_link_libraries(brusher PRIVATE
     Qt6::Network
 )
 
+# ---------------------------------------------------------------------------
+# Platform properties
+# ---------------------------------------------------------------------------
+
 set_target_properties(brusher PROPERTIES
     OUTPUT_NAME "brusher"
+    WIN32_EXECUTABLE ON
+    MACOSX_BUNDLE ON
 )
 
 # ---------------------------------------------------------------------------
@@ -180,15 +122,15 @@ set_target_properties(brusher PROPERTIES
 include(GNUInstallDirs)
 
 install(TARGETS brusher
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     BUNDLE DESTINATION .
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 # ---------------------------------------------------------------------------
 # Qt deployment
 # ---------------------------------------------------------------------------
 
-if(WIN32)
+if(WIN32 OR (UNIX AND NOT APPLE))
     qt_generate_deploy_app_script(
         TARGET brusher
         OUTPUT_SCRIPT deploy_script
