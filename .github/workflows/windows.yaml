@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ---------------------------------------------------------------------
-      # Qt
+      # Install Qt
       # ---------------------------------------------------------------------
 
       - name: Install Qt
@@ -52,7 +52,6 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "QT_ROOT_DIR = $env:QT_ROOT_DIR"
-          Write-Host "QT_PLUGIN_PATH = $env:QT_PLUGIN_PATH"
 
           if (-not $env:QT_ROOT_DIR) {
             Write-Error "QT_ROOT_DIR is not set."
@@ -60,24 +59,21 @@ jobs:
           }
 
           if (-not (Test-Path $env:QT_ROOT_DIR)) {
-            Write-Error "Qt root directory does not exist: $env:QT_ROOT_DIR"
+            Write-Error "Qt directory does not exist: $env:QT_ROOT_DIR"
             exit 1
           }
 
-          $qtCoreConfig = Join-Path `
+          $qtCore = Join-Path `
             $env:QT_ROOT_DIR `
             "lib\cmake\Qt6Core\Qt6CoreConfig.cmake"
 
-          if (-not (Test-Path $qtCoreConfig)) {
-            Write-Host "Qt installation contents:"
-            Get-ChildItem $env:QT_ROOT_DIR -Recurse | Select-Object -First 200
-
-            Write-Error "Qt6CoreConfig.cmake was not found at $qtCoreConfig"
+          if (-not (Test-Path $qtCore)) {
+            Write-Error "Qt6CoreConfig.cmake was not found:"
+            Write-Error $qtCore
             exit 1
           }
 
-          Write-Host "Qt6CoreConfig.cmake found:"
-          Write-Host $qtCoreConfig
+          Write-Host "Qt 6.8.3 installation verified."
 
       # ---------------------------------------------------------------------
       # Configure
@@ -104,7 +100,7 @@ jobs:
             --parallel
 
       # ---------------------------------------------------------------------
-      # Install and deploy
+      # Install application
       # ---------------------------------------------------------------------
 
       - name: Install Brusher
@@ -114,28 +110,98 @@ jobs:
             --config Release
 
       # ---------------------------------------------------------------------
-      # Verify package
+      # Deploy Qt with windeployqt
+      #
+      # windeployqt is Qt's official Windows deployment tool.
+      # It discovers the Qt DLLs and required plugins, including the
+      # SVG icon engine when QtSvg is used.
       # ---------------------------------------------------------------------
 
-      - name: Verify Windows Package
+      - name: Deploy Qt
         shell: pwsh
         run: |
           $package = Join-Path $env:GITHUB_WORKSPACE "package"
           $exe = Join-Path $package "bin\brusher.exe"
 
           if (-not (Test-Path $exe)) {
-            Write-Host "Package contents:"
-            Get-ChildItem $package -Recurse -ErrorAction SilentlyContinue
-
-            Write-Error "Brusher.exe was not found at $exe"
+            Write-Error "Brusher executable not found:"
+            Write-Error $exe
             exit 1
           }
 
-          Write-Host "Brusher package created successfully."
+          & windeployqt `
+            --release `
+            --compiler-runtime `
+            --no-translations `
+            --dir "$package\bin" `
+            "$exe"
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "windeployqt failed with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+          }
+
+      # ---------------------------------------------------------------------
+      # Verify SVG icon engine
+      # ---------------------------------------------------------------------
+
+      - name: Verify Qt Plugins
+        shell: pwsh
+        run: |
+          $package = Join-Path $env:GITHUB_WORKSPACE "package"
+
+          Write-Host "Checking deployed Qt plugins..."
+
+          $qwindows = Join-Path $package "bin\platforms\qwindows.dll"
+          $qsvgicon = Join-Path $package "bin\iconengines\qsvgicon.dll"
+
+          if (-not (Test-Path $qwindows)) {
+            Write-Error "Missing Qt Windows platform plugin:"
+            Write-Error $qwindows
+            exit 1
+          }
+
+          if (-not (Test-Path $qsvgicon)) {
+            Write-Error "Missing Qt SVG icon engine:"
+            Write-Error $qsvgicon
+            exit 1
+          }
+
+          Write-Host "qwindows.dll found."
+          Write-Host "qsvgicon.dll found."
+
+      # ---------------------------------------------------------------------
+      # Show package contents
+      # ---------------------------------------------------------------------
+
+      - name: Show Package
+        shell: pwsh
+        run: |
+          Get-ChildItem `
+            (Join-Path $env:GITHUB_WORKSPACE "package") `
+            -Recurse
+
+      # ---------------------------------------------------------------------
+      # Verify executable
+      # ---------------------------------------------------------------------
+
+      - name: Verify Windows Package
+        shell: pwsh
+        run: |
+          $exe = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "package\bin\brusher.exe"
+
+          if (-not (Test-Path $exe)) {
+            Write-Error "Brusher.exe was not found."
+            exit 1
+          }
+
+          Write-Host "Brusher Windows package is ready."
           Write-Host "Executable: $exe"
 
       # ---------------------------------------------------------------------
-      # Upload
+      # Upload artifact
       # ---------------------------------------------------------------------
 
       - name: Upload Windows Artifact

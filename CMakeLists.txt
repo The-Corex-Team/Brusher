@@ -128,9 +128,12 @@ install(TARGETS brusher
 
 # ---------------------------------------------------------------------------
 # Qt deployment
+#
+# Windows deployment is handled by windeployqt in windows.yaml.
+# Linux deployment is handled by Qt's CMake deployment API.
 # ---------------------------------------------------------------------------
 
-if(WIN32 OR (UNIX AND NOT APPLE))
+if(UNIX AND NOT APPLE)
     qt_generate_deploy_app_script(
         TARGET brusher
         OUTPUT_SCRIPT deploy_script
