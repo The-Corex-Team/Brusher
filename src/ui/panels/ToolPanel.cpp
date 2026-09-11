@@ -20,29 +20,28 @@ ToolPanel::ToolPanel(QWidget *parent)
     m_layout->setSpacing(2);
     m_layout->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
 
-    m_moveBtn = createToolButton(QIcon(":/src/icons/move.svg"), "Move Tool (V)");
-    m_rectSelectBtn = createToolButton(QIcon(":/src/icons/rectselect.svg"), "Rectangular Marquee Tool (M)");
-    m_ellipseSelectBtn = createToolButton(QIcon(":/src/icons/ellipseselect.svg"), "Elliptical Marquee Tool");
-    m_lassoSelectBtn = createToolButton(QIcon(":/src/icons/lassoselect.svg"), "Lasso Tool (L)");
+    m_moveBtn = createToolButton(QIcon(":/src/icons/move.png"), "Move Tool (V)");
+    m_rectSelectBtn = createToolButton(QIcon(":/src/icons/rectselect.png"), "Rectangular Marquee Tool (M)");
+    m_ellipseSelectBtn = createToolButton(QIcon(":/src/icons/ellipseselect.png"), "Elliptical Marquee Tool");
+    m_lassoSelectBtn = createToolButton(QIcon(":/src/icons/lassoselect.png"), "Lasso Tool (L)");
 
     QFrame *sep1 = new QFrame();
     sep1->setFrameShape(QFrame::HLine);
     sep1->setFrameShadow(QFrame::Sunken);
 
-    m_penBtn = createToolButton(QIcon(":/src/icons/brush.svg"), "Brush Tool (B)");
-    m_penBtn->setChecked(true);
-    m_lineBtn = createToolButton(QIcon(":/src/icons/line.svg"), "Line Tool (U)");
-    m_eraserBtn = createToolButton(QIcon(":/src/icons/eraser.svg"), "Eraser Tool (E)");
-    m_fillBtn = createToolButton(QIcon(":/src/icons/fill.svg"), "Paint Bucket Tool (G)");
+    m_penBtn = createToolButton(QIcon(":/src/icons/brush.png"), "Brush Tool (B)");
+    m_lineBtn = createToolButton(QIcon(":/src/icons/line.png"), "Line Tool (U)");
+    m_eraserBtn = createToolButton(QIcon(":/src/icons/eraser.png"), "Eraser Tool (E)");
+    m_fillBtn = createToolButton(QIcon(":/src/icons/fill.png"), "Paint Bucket Tool (G)");
 
     QFrame *sep2 = new QFrame();
     sep2->setFrameShape(QFrame::HLine);
     sep2->setFrameShadow(QFrame::Sunken);
 
-    m_textBtn = createToolButton(QIcon(":/src/icons/text.svg"), "Horizontal Type Tool (T)");
-    m_eyedropperBtn = createToolButton(QIcon(":/src/icons/colorpicker.svg"), "Eyedropper Tool (I)");
-    m_panBtn = createToolButton(QIcon(":/src/icons/pan.svg"), "Hand Tool (H)");
-    m_zoomBtn = createToolButton(QIcon(":/src/icons/zoom.svg"), "Zoom Tool (Z)");
+    m_textBtn = createToolButton(QIcon(":/src/icons/text.png"), "Horizontal Type Tool (T)");
+    m_eyedropperBtn = createToolButton(QIcon(":/src/icons/colorpicker.png"), "Eyedropper Tool (I)");
+    m_panBtn = createToolButton(QIcon(":/src/icons/pan.png"), "Hand Tool (H)");
+    m_zoomBtn = createToolButton(QIcon(":/src/icons/zoom.png"), "Zoom Tool (Z)");
 
     m_layout->addWidget(m_moveBtn);
     m_layout->addWidget(m_rectSelectBtn);
@@ -94,7 +93,7 @@ void ToolPanel::setupForegroundBackground()
     m_fgColorLabel->setStyleSheet("background-color: black; border: 1px solid #191919;");
 
     m_swapColorsBtn = new QToolButton(colorWidget);
-    m_swapColorsBtn->setIcon(QIcon(":/src/icons/swap.svg"));
+    m_swapColorsBtn->setIcon(QIcon(":/src/icons/swap.png"));
     m_swapColorsBtn->setIconSize(QSize(12, 12));
     m_swapColorsBtn->setGeometry(20, 0, 14, 14);
     m_swapColorsBtn->setStyleSheet("border: none; background: transparent;");
