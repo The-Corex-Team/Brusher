@@ -12,9 +12,6 @@ jobs:
     name: Build Windows
     runs-on: windows-latest
 
-    env:
-      QT_VERSION: '6.8.3'
-
     steps:
       # ---------------------------------------------------------------------
       # Checkout
@@ -30,11 +27,15 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: ${{ env.QT_VERSION }}
+          version: '6.8.3'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
           cache: true
+          set-env: true
 
       # ---------------------------------------------------------------------
-      # Clean workspace
+      # Clean
       # ---------------------------------------------------------------------
 
       - name: Clean Build
@@ -44,7 +45,42 @@ jobs:
           Remove-Item -Recurse -Force package -ErrorAction SilentlyContinue
 
       # ---------------------------------------------------------------------
-      # Configure CMake
+      # Verify Qt
+      # ---------------------------------------------------------------------
+
+      - name: Verify Qt
+        shell: pwsh
+        run: |
+          Write-Host "QT_ROOT_DIR = $env:QT_ROOT_DIR"
+          Write-Host "QT_PLUGIN_PATH = $env:QT_PLUGIN_PATH"
+
+          if (-not $env:QT_ROOT_DIR) {
+            Write-Error "QT_ROOT_DIR is not set."
+            exit 1
+          }
+
+          if (-not (Test-Path $env:QT_ROOT_DIR)) {
+            Write-Error "Qt root directory does not exist: $env:QT_ROOT_DIR"
+            exit 1
+          }
+
+          $qtCoreConfig = Join-Path `
+            $env:QT_ROOT_DIR `
+            "lib\cmake\Qt6Core\Qt6CoreConfig.cmake"
+
+          if (-not (Test-Path $qtCoreConfig)) {
+            Write-Host "Qt installation contents:"
+            Get-ChildItem $env:QT_ROOT_DIR -Recurse | Select-Object -First 200
+
+            Write-Error "Qt6CoreConfig.cmake was not found at $qtCoreConfig"
+            exit 1
+          }
+
+          Write-Host "Qt6CoreConfig.cmake found:"
+          Write-Host $qtCoreConfig
+
+      # ---------------------------------------------------------------------
+      # Configure
       # ---------------------------------------------------------------------
 
       - name: Configure CMake
@@ -53,6 +89,7 @@ jobs:
           $prefix = Join-Path $env:GITHUB_WORKSPACE "package"
 
           cmake -S . -B build `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
             -DCMAKE_INSTALL_PREFIX="$prefix"
 
       # ---------------------------------------------------------------------
@@ -67,7 +104,7 @@ jobs:
             --parallel
 
       # ---------------------------------------------------------------------
-      # Install and deploy Qt
+      # Install and deploy
       # ---------------------------------------------------------------------
 
       - name: Install Brusher
@@ -98,7 +135,7 @@ jobs:
           Write-Host "Executable: $exe"
 
       # ---------------------------------------------------------------------
-      # Upload artifact
+      # Upload
       # ---------------------------------------------------------------------
 
       - name: Upload Windows Artifact
