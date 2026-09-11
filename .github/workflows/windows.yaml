@@ -16,8 +16,16 @@ jobs:
       QT_VERSION: '6.8.3'
 
     steps:
+      # ---------------------------------------------------------------------
+      # Checkout
+      # ---------------------------------------------------------------------
+
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------------
+      # Qt
+      # ---------------------------------------------------------------------
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -25,10 +33,17 @@ jobs:
           version: ${{ env.QT_VERSION }}
           cache: true
 
+      # ---------------------------------------------------------------------
+      # Configure
+      # ---------------------------------------------------------------------
+
       - name: Configure CMake
         run: |
-          cmake -S . -B build `
-            -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build
+
+      # ---------------------------------------------------------------------
+      # Build
+      # ---------------------------------------------------------------------
 
       - name: Build
         run: |
@@ -36,29 +51,43 @@ jobs:
             --config Release `
             --parallel
 
+      # ---------------------------------------------------------------------
+      # Install and deploy
+      # ---------------------------------------------------------------------
+
       - name: Install Brusher
         run: |
           cmake --install build `
             --config Release `
-            --prefix package
+            --prefix "${{ github.workspace }}\package"
+
+      # ---------------------------------------------------------------------
+      # Verify package
+      # ---------------------------------------------------------------------
 
       - name: Verify Windows Package
         shell: pwsh
         run: |
-          $exe = Join-Path $PWD "package\bin\brusher.exe"
+          $package = Join-Path $env:GITHUB_WORKSPACE "package"
+          $exe = Join-Path $package "bin\brusher.exe"
 
           if (-not (Test-Path $exe)) {
             Write-Host "Package contents:"
-            Get-ChildItem package -Recurse
+            Get-ChildItem $package -Recurse -ErrorAction SilentlyContinue
+
             Write-Error "Brusher.exe was not found at $exe"
             exit 1
           }
 
-          Write-Host "Found Brusher:"
-          Write-Host $exe
+          Write-Host "Brusher package created successfully."
+          Write-Host "Executable: $exe"
+
+      # ---------------------------------------------------------------------
+      # Upload artifact
+      # ---------------------------------------------------------------------
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Brusher-windows-x64
-          path: package/
+          path: ${{ github.workspace }}/package/
