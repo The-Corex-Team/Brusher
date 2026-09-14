@@ -209,4 +209,3 @@ jobs:
         with:
           name: Brusher-windows-x64
           path: ${{ github.workspace }}/package/
-```
