@@ -7,16 +7,19 @@
 #include <QIcon>
 #include <QLabel>
 #include <QHBoxLayout>
-#include <QDebug>
+#include <QSize>
+
 
 ToolPanel::ToolPanel(QWidget *parent)
     : QDockWidget(tr("Tools"), parent)
 {
     setObjectName("ToolBar");
+
     setFeatures(
         QDockWidget::DockWidgetFloatable |
         QDockWidget::DockWidgetMovable
     );
+
     setAllowedAreas(
         Qt::LeftDockWidgetArea |
         Qt::RightDockWidgetArea
@@ -27,47 +30,16 @@ ToolPanel::ToolPanel(QWidget *parent)
     m_layout = new QVBoxLayout(content);
     m_layout->setContentsMargins(2, 4, 2, 4);
     m_layout->setSpacing(2);
-    m_layout->setAlignment(
-        Qt::AlignTop | Qt::AlignHCenter
-    );
+    m_layout->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
 
-    // ---------------------------------------------------------
-    // Resource diagnostics
-    // ---------------------------------------------------------
 
-    const QStringList iconPaths = {
-        ":/src/icons/move.png",
-        ":/src/icons/rectselect.png",
-        ":/src/icons/ellipseselect.png",
-        ":/src/icons/lassoselect.png",
-        ":/src/icons/brush.png",
-        ":/src/icons/line.png",
-        ":/src/icons/eraser.png",
-        ":/src/icons/fill.png",
-        ":/src/icons/text.png",
-        ":/src/icons/colorpicker.png",
-        ":/src/icons/pan.png",
-        ":/src/icons/zoom.png",
-        ":/src/icons/swap.png"
-    };
-
-    for (const QString &path : iconPaths) {
-        QIcon testIcon(path);
-
-        qDebug()
-            << "[Brusher Icon]"
-            << path
-            << "isNull =" << testIcon.isNull()
-            << "availableSizes =" << testIcon.availableSizes();
-    }
-
-    // ---------------------------------------------------------
-    // Tools
-    // ---------------------------------------------------------
+    // ============================================================
+    // Selection / Navigation Tools
+    // ============================================================
 
     m_moveBtn = createToolButton(
-    QIcon(":/icons/move.png"),
-    "Move Tool (V)"
+        QIcon(":/icons/move.png"),
+        "Move Tool (V)"
     );
 
     m_rectSelectBtn = createToolButton(
@@ -85,10 +57,26 @@ ToolPanel::ToolPanel(QWidget *parent)
         "Lasso Tool (L)"
     );
 
+
+    // ============================================================
+    // First Separator
+    // ============================================================
+
+    QFrame *sep1 = new QFrame(content);
+    sep1->setFrameShape(QFrame::HLine);
+    sep1->setFrameShadow(QFrame::Sunken);
+
+
+    // ============================================================
+    // Painting Tools
+    // ============================================================
+
     m_penBtn = createToolButton(
         QIcon(":/icons/brush.png"),
         "Brush Tool (B)"
     );
+
+    m_penBtn->setChecked(true);
 
     m_lineBtn = createToolButton(
         QIcon(":/icons/line.png"),
@@ -104,6 +92,20 @@ ToolPanel::ToolPanel(QWidget *parent)
         QIcon(":/icons/fill.png"),
         "Paint Bucket Tool (G)"
     );
+
+
+    // ============================================================
+    // Second Separator
+    // ============================================================
+
+    QFrame *sep2 = new QFrame(content);
+    sep2->setFrameShape(QFrame::HLine);
+    sep2->setFrameShadow(QFrame::Sunken);
+
+
+    // ============================================================
+    // Other Tools
+    // ============================================================
 
     m_textBtn = createToolButton(
         QIcon(":/icons/text.png"),
@@ -125,9 +127,10 @@ ToolPanel::ToolPanel(QWidget *parent)
         "Zoom Tool (Z)"
     );
 
-    // ---------------------------------------------------------
-    // Layout
-    // ---------------------------------------------------------
+
+    // ============================================================
+    // Add Widgets
+    // ============================================================
 
     m_layout->addWidget(m_moveBtn);
     m_layout->addWidget(m_rectSelectBtn);
@@ -150,7 +153,13 @@ ToolPanel::ToolPanel(QWidget *parent)
 
     m_layout->addStretch();
 
+
+    // ============================================================
+    // Foreground / Background Colors
+    // ============================================================
+
     setupForegroundBackground();
+
 
     content->setLayout(m_layout);
     setWidget(content);
@@ -158,16 +167,17 @@ ToolPanel::ToolPanel(QWidget *parent)
     setFixedWidth(40);
 }
 
+
 QToolButton *ToolPanel::createToolButton(
     const QIcon &icon,
-    const QString &tooltip
-)
+    const QString &tooltip)
 {
     QToolButton *btn = new QToolButton(this);
 
     btn->setIcon(icon);
     btn->setIconSize(QSize(20, 20));
     btn->setToolTip(tooltip);
+
     btn->setCheckable(true);
     btn->setFixedSize(32, 32);
 
@@ -181,6 +191,7 @@ QToolButton *ToolPanel::createToolButton(
     return btn;
 }
 
+
 void ToolPanel::setupForegroundBackground()
 {
     QWidget *colorWidget = new QWidget(this);
@@ -188,35 +199,40 @@ void ToolPanel::setupForegroundBackground()
     colorWidget->setObjectName("ColorSwatchWidget");
     colorWidget->setFixedSize(32, 40);
 
+
+    // Background color
+
     m_bgColorLabel = new QLabel(colorWidget);
 
-    m_bgColorLabel->setGeometry(
-        8, 12, 16, 16
-    );
+    m_bgColorLabel->setGeometry(8, 12, 16, 16);
 
     m_bgColorLabel->setStyleSheet(
         "background-color: white;"
         "border: 1px solid #191919;"
     );
 
+
+    // Foreground color
+
     m_fgColorLabel = new QLabel(colorWidget);
 
-    m_fgColorLabel->setGeometry(
-        2, 4, 16, 16
-    );
+    m_fgColorLabel->setGeometry(2, 4, 16, 16);
 
     m_fgColorLabel->setStyleSheet(
         "background-color: black;"
         "border: 1px solid #191919;"
     );
 
+
+    // Swap foreground/background colors
+
     m_swapColorsBtn = new QToolButton(colorWidget);
 
-    m_swapColorsBtn->setIcon(QIcon(":/icons/swap.png"));
-
-    m_swapColorsBtn->setIconSize(
-        QSize(12, 12)
+    m_swapColorsBtn->setIcon(
+        QIcon(":/icons/swap.png")
     );
+
+    m_swapColorsBtn->setIconSize(QSize(12, 12));
 
     m_swapColorsBtn->setGeometry(
         20, 0, 14, 14
@@ -234,13 +250,14 @@ void ToolPanel::setupForegroundBackground()
         &ToolPanel::onSwapColorsClicked
     );
 
+
     m_layout->addWidget(colorWidget);
 }
 
+
 void ToolPanel::updateSwatches(
     const QColor &fg,
-    const QColor &bg
-)
+    const QColor &bg)
 {
     m_fgColorLabel->setStyleSheet(
         QString(
@@ -257,6 +274,7 @@ void ToolPanel::updateSwatches(
     );
 }
 
+
 void ToolPanel::onToolClicked()
 {
     QToolButton *clickedBtn =
@@ -266,79 +284,65 @@ void ToolPanel::onToolClicked()
         return;
     }
 
-    m_moveBtn->setChecked(
-        clickedBtn == m_moveBtn
-    );
 
-    m_rectSelectBtn->setChecked(
-        clickedBtn == m_rectSelectBtn
-    );
+    // Keep only the selected tool checked
 
-    m_ellipseSelectBtn->setChecked(
-        clickedBtn == m_ellipseSelectBtn
-    );
+    m_moveBtn->setChecked(clickedBtn == m_moveBtn);
+    m_rectSelectBtn->setChecked(clickedBtn == m_rectSelectBtn);
+    m_ellipseSelectBtn->setChecked(clickedBtn == m_ellipseSelectBtn);
+    m_lassoSelectBtn->setChecked(clickedBtn == m_lassoSelectBtn);
 
-    m_lassoSelectBtn->setChecked(
-        clickedBtn == m_lassoSelectBtn
-    );
+    m_penBtn->setChecked(clickedBtn == m_penBtn);
+    m_lineBtn->setChecked(clickedBtn == m_lineBtn);
+    m_eraserBtn->setChecked(clickedBtn == m_eraserBtn);
+    m_fillBtn->setChecked(clickedBtn == m_fillBtn);
 
-    m_penBtn->setChecked(
-        clickedBtn == m_penBtn
-    );
+    m_textBtn->setChecked(clickedBtn == m_textBtn);
+    m_eyedropperBtn->setChecked(clickedBtn == m_eyedropperBtn);
+    m_panBtn->setChecked(clickedBtn == m_panBtn);
+    m_zoomBtn->setChecked(clickedBtn == m_zoomBtn);
 
-    m_lineBtn->setChecked(
-        clickedBtn == m_lineBtn
-    );
 
-    m_eraserBtn->setChecked(
-        clickedBtn == m_eraserBtn
-    );
+    // Emit tool ID
 
-    m_fillBtn->setChecked(
-        clickedBtn == m_fillBtn
-    );
-
-    m_textBtn->setChecked(
-        clickedBtn == m_textBtn
-    );
-
-    m_eyedropperBtn->setChecked(
-        clickedBtn == m_eyedropperBtn
-    );
-
-    m_panBtn->setChecked(
-        clickedBtn == m_panBtn
-    );
-
-    m_zoomBtn->setChecked(
-        clickedBtn == m_zoomBtn
-    );
-
-    if (clickedBtn == m_penBtn)
+    if (clickedBtn == m_penBtn) {
         emit toolSelected(0);
-    else if (clickedBtn == m_eraserBtn)
+    }
+    else if (clickedBtn == m_eraserBtn) {
         emit toolSelected(1);
-    else if (clickedBtn == m_fillBtn)
+    }
+    else if (clickedBtn == m_fillBtn) {
         emit toolSelected(2);
-    else if (clickedBtn == m_eyedropperBtn)
+    }
+    else if (clickedBtn == m_eyedropperBtn) {
         emit toolSelected(3);
-    else if (clickedBtn == m_lineBtn)
+    }
+    else if (clickedBtn == m_lineBtn) {
         emit toolSelected(4);
-    else if (clickedBtn == m_moveBtn)
+    }
+    else if (clickedBtn == m_moveBtn) {
         emit toolSelected(5);
-    else if (clickedBtn == m_rectSelectBtn)
+    }
+    else if (clickedBtn == m_rectSelectBtn) {
         emit toolSelected(6);
-    else if (clickedBtn == m_ellipseSelectBtn)
+    }
+    else if (clickedBtn == m_ellipseSelectBtn) {
         emit toolSelected(7);
-    else if (clickedBtn == m_lassoSelectBtn)
+    }
+    else if (clickedBtn == m_lassoSelectBtn) {
         emit toolSelected(8);
-    else if (clickedBtn == m_textBtn)
+    }
+    else if (clickedBtn == m_textBtn) {
         emit toolSelected(9);
-    else if (clickedBtn == m_zoomBtn)
+    }
+    else if (clickedBtn == m_zoomBtn) {
         emit toolSelected(10);
-    else if (clickedBtn == m_panBtn)
+    }
+    else if (clickedBtn == m_panBtn) {
         emit toolSelected(11);
+    }
 }
+
 
 void ToolPanel::onSwapColorsClicked()
 {
