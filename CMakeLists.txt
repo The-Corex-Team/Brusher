@@ -67,7 +67,7 @@ set(SOURCES
     src/ui/panels/ToolOptionsBar.cpp
     src/ui/panels/ColorPanel.cpp
     src/ui/panels/LayerPanel.cpp
-    src/ui/ui/BrusherTheme.cpp
+    src/ui/BrusherTheme.cpp
 
     # UI dialogs / popups
     src/ui/dialogs/NewProjectDialog.cpp
