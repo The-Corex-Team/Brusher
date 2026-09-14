@@ -1,28 +1,36 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
     <qresource prefix="/">
-        <file>src/icons/brush.png</file>
-        <file>src/icons/colorpicker.png</file>
-        <file>src/icons/eraser.png</file>
-        <file>src/icons/fill.png</file>
-        <file>src/icons/move.png</file>
-        <file>src/icons/pan.png</file>
-        <file>src/icons/pointer.png</file>
-        <file>src/icons/rectselect.png</file>
-        <file>src/icons/ellipseselect.png</file>
-        <file>src/icons/lassoselect.png</file>
-        <file>src/icons/text.png</file>
-        <file>src/icons/zoom.png</file>
-        <file>src/icons/layer_visible.png</file>
-        <file>src/icons/layer_new.png</file>
-        <file>src/icons/layer_delete.png</file>
-        <file>src/icons/layer_duplicate.png</file>
-        <file>src/icons/swap.png</file>
-        <file>src/icons/line.png</file>
 
-        <file>src/icons/Brusher.png</file>
-        <file>src/icons/Brusher_Splashscreen.png</file>
+        <!-- Tool Icons -->
+        <file alias="icons/brush.png">src/icons/brush.png</file>
+        <file alias="icons/colorpicker.png">src/icons/colorpicker.png</file>
+        <file alias="icons/eraser.png">src/icons/eraser.png</file>
+        <file alias="icons/fill.png">src/icons/fill.png</file>
+        <file alias="icons/move.png">src/icons/move.png</file>
+        <file alias="icons/pan.png">src/icons/pan.png</file>
+        <file alias="icons/pointer.png">src/icons/pointer.png</file>
+        <file alias="icons/rectselect.png">src/icons/rectselect.png</file>
+        <file alias="icons/ellipseselect.png">src/icons/ellipseselect.png</file>
+        <file alias="icons/lassoselect.png">src/icons/lassoselect.png</file>
+        <file alias="icons/text.png">src/icons/text.png</file>
+        <file alias="icons/zoom.png">src/icons/zoom.png</file>
+        <file alias="icons/line.png">src/icons/line.png</file>
 
-        <file>src/styles/brusher_dark.qss</file>
+        <!-- Layer Icons -->
+        <file alias="icons/layer_visible.png">src/icons/layer_visible.png</file>
+        <file alias="icons/layer_new.png">src/icons/layer_new.png</file>
+        <file alias="icons/layer_delete.png">src/icons/layer_delete.png</file>
+        <file alias="icons/layer_duplicate.png">src/icons/layer_duplicate.png</file>
+
+        <!-- UI Icons -->
+        <file alias="icons/swap.png">src/icons/swap.png</file>
+
+        <!-- Application Icon / Splash -->
+        <file alias="icons/Brusher.png">src/icons/Brusher.png</file>
+
+        <!-- Styles -->
+        <file alias="styles/brusher_dark.qss">src/styles/brusher_dark.qss</file>
+
     </qresource>
 </RCC>
