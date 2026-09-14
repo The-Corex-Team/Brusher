@@ -33,6 +33,8 @@ qt_standard_project_setup()
 # Sources
 # ---------------------------------------------------------------------------
 
+set(CMAKE_AUTORCC ON)
+
 set(SOURCES
     # Application
     src/main.cpp

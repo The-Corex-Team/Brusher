@@ -28,6 +28,7 @@
 
         <!-- Application Icon / Splash -->
         <file alias="icons/Brusher.png">src/icons/Brusher.png</file>
+        <file alias="icons/Brusher_Splashscreen.png">src/icons/Brusher_Splashscreen.png</file>
 
         <!-- Styles -->
         <file alias="styles/brusher_dark.qss">src/styles/brusher_dark.qss</file>
